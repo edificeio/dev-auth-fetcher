@@ -1,0 +1,48 @@
+{
+  "name": "dev-auth-fetcher",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "CLI pour connecter un environnement local aux environnements de recette et injecter les cookies d'authentification dans les fichiers .env des frontends.",
+  "bin": {
+    "dev-auth-fetcher": "bin/dev-auth-fetcher"
+  },
+  "scripts": {
+    "dev": "tsx src/cli/index.ts",
+    "build": "tsup src/cli/index.ts --out-dir dist --format esm --dts --sourcemap --no-splitting",
+    "start": "node dist/index.js",
+    "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "test": "vitest"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.0.0",
+    "dotenv": "^16.4.0",
+    "fs-extra": "^11.2.0",
+    "inquirer": "^9.3.0",
+    "ora": "^8.0.0",
+    "playwright": "^1.48.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^22.10.0",
+    "typescript-eslint": "^8.0.0",
+    "@types/inquirer": "^9.0.7",
+    "@types/ora": "^3.2.0",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.30.0",
+    "prettier": "^3.3.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.19.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  }
+}

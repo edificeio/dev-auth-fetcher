@@ -137,3 +137,8 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+.pnpm-store/
+
+# CLI credentials (per-user, not versioned)
+.dev-auth-fetcher/

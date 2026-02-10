@@ -1,0 +1,33 @@
+import { describe, it, expect } from 'vitest';
+
+import {
+  listEnvironments,
+  getEnvironmentById,
+  DEFAULT_ENVIRONMENTS,
+} from '../../src/config/envConfigs';
+
+describe('envConfigs', () => {
+  it('DEFAULT_ENVIRONMENTS contient les 4 environnements attendus', () => {
+    expect(DEFAULT_ENVIRONMENTS).toHaveLength(4);
+    const ids = DEFAULT_ENVIRONMENTS.map((e) => e.id);
+    expect(ids).toContain('recette-ode1');
+    expect(ids).toContain('recette-ode2');
+    expect(ids).toContain('recette-release');
+    expect(ids).toContain('local');
+  });
+
+  it('listEnvironments charge les fichiers depuis config/environments', async () => {
+    const envs = await listEnvironments();
+    expect(Array.isArray(envs)).toBe(true);
+    const hasRecetteOde1 = envs.some((e) => e.id === 'recette-ode1');
+    expect(hasRecetteOde1).toBe(true);
+  });
+
+  it('getEnvironmentById retourne la config ou null', async () => {
+    const env = await getEnvironmentById('recette-ode1');
+    expect(env).not.toBeNull();
+    expect(env?.url).toContain('recette-ode1');
+    const missing = await getEnvironmentById('nonexistent');
+    expect(missing).toBeNull();
+  });
+});

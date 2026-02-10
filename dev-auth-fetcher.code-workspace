@@ -1,0 +1,53 @@
+{
+  "folders": [
+    {
+      "path": ".",
+    },
+  ],
+  "settings": {
+    // Format & lint
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": "explicit",
+    },
+
+    // Indentation / affichage
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true,
+    "editor.rulers": [100],
+    "editor.renderWhitespace": "selection",
+    "files.eol": "\n",
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+
+    // TypeScript / JavaScript (ESM)
+    "typescript.tsdk": "node_modules/typescript/lib",
+    "javascript.preferences.quoteStyle": "single",
+    "typescript.preferences.quoteStyle": "single",
+    "javascript.format.enable": false,
+    "typescript.format.enable": false,
+
+    // ESLint
+    "eslint.enable": true,
+    "eslint.workingDirectories": [{ "mode": "auto" }],
+    "eslint.validate": ["javascript", "javascriptreact", "typescript", "typescriptreact"],
+
+    // Prettier
+    "prettier.requireConfig": true,
+
+    // Terminal par défaut
+    "terminal.integrated.defaultProfile.osx": "zsh",
+    "terminal.integrated.defaultProfile.linux": "bash",
+    "terminal.integrated.defaultProfile.windows": "PowerShell",
+  },
+  "extensions": {
+    "recommendations": [
+      "dbaeumer.vscode-eslint",
+      "esbenp.prettier-vscode",
+      "ms-vscode.vscode-typescript-next",
+      "orta.vscode-jest", // pour Vitest/Jest (intégration tests)
+      "ms-vsliveshare.vsliveshare",
+    ],
+  },
+}
