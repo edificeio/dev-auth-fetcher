@@ -1,0 +1,58 @@
+{
+  "recettes": [
+    "https://recette-ode1.opendigitaleducation.com/",
+    "http://localhost:8090/",
+    "https://recette-release.opendigitaleducation.com/"
+  ],
+  "profils": [
+    {
+      "login": "stephane.loison",
+      "password": "EasyDemo2011",
+      "pi": "Enseignant"
+    },
+    {
+      "login": "isabelle.fricot",
+      "password": "EasyDemo2011",
+      "pi": "Enseignant - Postman"
+    },
+    {
+      "login": "isabelle.polonio",
+      "password": "EasyDemo2011"
+    },
+    {
+      "login": "olympe",
+      "password": "EasyDemo2011",
+      "pi": "Eleve sans aucun fil"
+    },
+    {
+      "login": "romuald.coulaud",
+      "password": "EasyDemo2011",
+      "pi": "ADML avec fil"
+    },
+    {
+      "login": "albus",
+      "password": "EasyDemo2011"
+    },
+    {
+      "login": "hadda.karamoko",
+      "password": "EasyDemo2011",
+      "pi": "ADML sans aucun fil"
+    },
+    {
+      "login": "peggy.barreau",
+      "password": "EasyDemo2011"
+    },
+    {
+      "login": "rogue",
+      "password": "EasyDemo2011"
+    },
+    {
+      "login": "luc.ien",
+      "password": "EasyDemo2011"
+    },
+    {
+      "login": "claire.lemarquis",
+      "password": "password"
+    }
+  ]
+}
