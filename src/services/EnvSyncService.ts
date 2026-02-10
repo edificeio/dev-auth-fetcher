@@ -6,6 +6,7 @@ import type { EnvironmentConfig } from '../config/config.types.js';
 import {
   getProfilesForEnvironment,
   addOrUpdateProfileForEnvironment,
+  getLastConnection,
   setLastConnection,
 } from '../config/credentialsStore.js';
 import { listEnvironments, getEnvironmentById } from '../config/envConfigs.js';
@@ -59,14 +60,45 @@ export class EnvSyncService {
         logger.error("Aucun environnement configuré. Exécutez d'abord : dev-auth-fetcher onboard");
         return;
       }
+
+      const last = await getLastConnection();
+      const RECONNECT_CHOICE = '__reconnect_last__';
+      const envChoices = envs.map((e) => ({ name: `${e.label} (${e.url})`, value: e.id }));
+      if (last) {
+        const appsDesc =
+          last.allApps === true
+            ? 'toutes les apps'
+            : last.appNames?.length
+              ? last.appNames.join(', ')
+              : 'apps à choisir';
+        const quickReconnectLabel = `🔄 Reconnexion rapide : ${last.envId} / ${last.login} (${appsDesc})`;
+        envChoices.unshift({ name: quickReconnectLabel, value: RECONNECT_CHOICE });
+      }
+
       const { selectedEnvId } = await inquirer.prompt<{ selectedEnvId: string }>([
         {
           type: 'list',
           name: 'selectedEnvId',
           message: "Sélectionnez l'environnement :",
-          choices: envs.map((e) => ({ name: `${e.label} (${e.url})`, value: e.id })),
+          choices: envChoices,
         },
       ]);
+
+      if (selectedEnvId === RECONNECT_CHOICE && last) {
+        const hasAppSelection = last.allApps === true || (last.appNames?.length ?? 0) > 0;
+        await this.runInteractive({
+          env: last.envId,
+          login: last.login,
+          ...(last.allApps === true
+            ? { all: true }
+            : last.appNames?.length
+              ? { apps: last.appNames }
+              : {}),
+          skipConfirm: hasAppSelection,
+        });
+        return;
+      }
+
       envId = selectedEnvId;
       env = (await getEnvironmentById(envId)) ?? null;
     }
