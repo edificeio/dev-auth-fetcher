@@ -1,5 +1,5 @@
-import { EnvSyncService, type ConnectOptions } from '../../services/EnvSyncService';
-import { createLogger } from '../../utils/logger';
+import { EnvSyncService, type ConnectOptions } from '../../services/EnvSyncService.js';
+import { createLogger } from '../../utils/logger.js';
 
 export type { ConnectOptions };
 
@@ -14,4 +14,3 @@ export async function runConnectCommand(options: ConnectOptions): Promise<void> 
 
   logger.success('✅ Synchronisation des cookies terminée.');
 }
-

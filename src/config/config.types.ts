@@ -12,6 +12,7 @@ export interface AppConfig {
 export interface UserProfile {
   login: string;
   password: string;
+  role?: string;
 }
 
 export interface EnvironmentConfig {

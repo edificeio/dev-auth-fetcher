@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { listEnvironments, getEnvironmentById, DEFAULT_ENVIRONMENTS } from '../../src/config/envConfigs';
+
+import {
+  listEnvironments,
+  getEnvironmentById,
+  DEFAULT_ENVIRONMENTS,
+} from '../../src/config/envConfigs';
 
 describe('envConfigs', () => {
   it('DEFAULT_ENVIRONMENTS contient les 4 environnements attendus', () => {

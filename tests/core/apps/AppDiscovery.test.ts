@@ -1,7 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, mkdir, writeFile, rm } from 'fs/promises';
+import { mkdtemp, mkdir, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
+
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+
 import { discoverApps } from '../../../src/core/apps/AppDiscovery';
 import { AppDiscoveryError } from '../../../src/utils/errors';
 
@@ -33,7 +35,7 @@ describe('AppDiscovery', () => {
     expect(apps[0].envPath).toContain('.env');
   });
 
-  it('lance AppDiscoveryError si le répertoire n\'existe pas', async () => {
+  it("lance AppDiscoveryError si le répertoire n'existe pas", async () => {
     await expect(discoverApps(join(tempRoot, 'nonexistent'))).rejects.toThrow(AppDiscoveryError);
   });
 });

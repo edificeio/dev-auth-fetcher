@@ -1,9 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import {
-  parseEnvContent,
-  mergeEnv,
-  formatEnvContent,
-} from '../../src/utils/envFile';
+
+import { parseEnvContent, mergeEnv, formatEnvContent } from '../../src/utils/envFile';
 
 describe('parseEnvContent', () => {
   it('parse des lignes KEY=value', () => {

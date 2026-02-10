@@ -1,8 +1,10 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { getAppConfigPath, getConfigDir, getEnvironmentsConfigDir } from '../utils/paths';
-import { AppConfigError } from '../utils/errors';
-import type { AppConfig } from './config.types';
+
+import { AppConfigError } from '../utils/errors.js';
+import { getAppConfigPath, getConfigDir, getEnvironmentsConfigDir } from '../utils/paths.js';
+
+import type { AppConfig } from './config.types.js';
 
 const DEFAULT_APP_CONFIG: AppConfig = {
   appsRoot: '',
@@ -31,7 +33,7 @@ export async function loadAppConfig(): Promise<AppConfig | null> {
       return null;
     }
     throw new AppConfigError(
-      `Impossible de charger app.config.json: ${nodeErr instanceof Error ? nodeErr.message : String(err)}`,
+      `Impossible de charger app.config.json: ${nodeErr instanceof Error ? nodeErr.message : String(err)}`
     );
   }
 }

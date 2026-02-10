@@ -1,6 +1,7 @@
 import inquirer from 'inquirer';
-import { DEFAULT_ENVIRONMENTS } from '../../config/envConfigs';
-import type { EnvironmentConfig } from '../../config/config.types';
+
+import type { EnvironmentConfig } from '../../config/config.types.js';
+import { DEFAULT_ENVIRONMENTS } from '../../config/envConfigs.js';
 
 export interface SelectEnvironmentResult {
   generateDefaults: boolean;
@@ -15,7 +16,8 @@ export async function selectEnvironmentStep(): Promise<SelectEnvironmentResult> 
     {
       type: 'confirm',
       name: 'generateDefaults',
-      message: 'Générer les fichiers de configuration des environnements par défaut (recette-ode1, recette-ode2, recette-release, local) ?',
+      message:
+        'Générer les fichiers de configuration des environnements par défaut (recette-ode1, recette-ode2, recette-release, local) ?',
       default: true,
     },
   ]);

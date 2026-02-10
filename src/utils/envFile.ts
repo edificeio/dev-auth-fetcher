@@ -1,6 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { EnvFileError } from './errors';
+
+import { EnvFileError } from './errors.js';
 
 /**
  * Lit un fichier .env et retourne un objet clé/valeur.
@@ -32,7 +33,10 @@ export function parseEnvContent(content: string): Record<string, string> {
     if (eqIndex === -1) continue;
     const key = trimmed.slice(0, eqIndex).trim();
     let value = trimmed.slice(eqIndex + 1).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
       value = value.slice(1, -1).replace(/\\(.)/g, '$1');
     }
     result[key] = value;
@@ -45,7 +49,7 @@ export function parseEnvContent(content: string): Record<string, string> {
  */
 export function mergeEnv(
   existing: Record<string, string>,
-  patch: Record<string, string>,
+  patch: Record<string, string>
 ): Record<string, string> {
   return { ...existing, ...patch };
 }
@@ -53,7 +57,10 @@ export function mergeEnv(
 /**
  * Formate un objet env en contenu .env (lignes KEY=value).
  */
-export function formatEnvContent(values: Record<string, string>, headerComments: string[] = []): string {
+export function formatEnvContent(
+  values: Record<string, string>,
+  headerComments: string[] = []
+): string {
   const lines: string[] = [];
   for (const comment of headerComments) {
     lines.push(comment.startsWith('#') ? comment : `# ${comment}`);
@@ -74,7 +81,7 @@ export function formatEnvContent(values: Record<string, string>, headerComments:
 export async function writeEnvFile(
   filePath: string,
   values: Record<string, string>,
-  headerComments: string[] = [],
+  headerComments: string[] = []
 ): Promise<void> {
   const dir = path.dirname(filePath);
   await fs.mkdir(dir, { recursive: true });

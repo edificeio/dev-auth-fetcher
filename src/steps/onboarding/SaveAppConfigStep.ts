@@ -1,5 +1,5 @@
-import { saveAppConfig } from '../../config/appConfig';
-import type { AppConfig } from '../../config/config.types';
+import { saveAppConfig } from '../../config/appConfig.js';
+import type { AppConfig } from '../../config/config.types.js';
 
 /**
  * Sauvegarde la configuration globale app.config.json.

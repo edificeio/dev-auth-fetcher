@@ -1,6 +1,8 @@
 import { chromium } from 'playwright';
-import type { IAuthClient, AuthCredentials, AuthCookies } from './AuthClient';
-import { AuthError } from '../../utils/errors';
+
+import { AuthError } from '../../utils/errors.js';
+
+import type { IAuthClient, AuthCredentials, AuthCookies } from './AuthClient.js';
 
 const LOGIN_TIMEOUT_MS = 30_000;
 const AVATAR_SELECTOR_TIMEOUT_MS = 10_000;
@@ -33,7 +35,7 @@ export class PlaywrightAuthClient implements IAuthClient {
 
       if (!xsrfToken || !sessionId) {
         throw new AuthError(
-          'Échec de la connexion. Vérifiez les identifiants et réessayez. (Cookies XSRF-TOKEN ou oneSessionId absents.)',
+          'Échec de la connexion. Vérifiez les identifiants et réessayez. (Cookies XSRF-TOKEN ou oneSessionId absents.)'
         );
       }
 

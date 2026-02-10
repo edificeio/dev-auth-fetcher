@@ -1,10 +1,10 @@
-import { loadAppConfig, saveAppConfig, setAppsRoot } from '../config/appConfig';
-import { askRootDirectoryStep } from '../steps/onboarding/AskRootDirectoryStep';
-import { selectEnvironmentStep } from '../steps/onboarding/SelectEnvironmentStep';
-import { generateEnvConfigsStep } from '../steps/onboarding/GenerateEnvConfigsStep';
-import { saveAppConfigStep } from '../steps/onboarding/SaveAppConfigStep';
-import { createLogger } from '../utils/logger';
-import type { AppConfig } from '../config/config.types';
+import { loadAppConfig, setAppsRoot } from '../config/appConfig.js';
+import type { AppConfig } from '../config/config.types.js';
+import { askRootDirectoryStep } from '../steps/onboarding/AskRootDirectoryStep.js';
+import { generateEnvConfigsStep } from '../steps/onboarding/GenerateEnvConfigsStep.js';
+import { saveAppConfigStep } from '../steps/onboarding/SaveAppConfigStep.js';
+import { selectEnvironmentStep } from '../steps/onboarding/SelectEnvironmentStep.js';
+import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger();
 

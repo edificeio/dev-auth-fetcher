@@ -37,7 +37,7 @@ pnpm run dev onboard
 node bin/dev-auth-fetcher onboard
 ```
 
-Vous serez invité à saisir le chemin du répertoire contenant vos applications (chaque app ayant un dossier `frontend`). Les fichiers dans `config/environments/` (recette-ode1, recette-ode2, recette-release, local) sont créés par défaut.
+Vous serez invité à saisir le chemin du répertoire contenant vos applications (chaque app ayant un dossier `frontend`). Les fichiers dans `config/environments/` (recette-ode1, recette-ode2, ..., recette-release, local) sont créés par défaut.
 
 ### Connexion et injection des cookies
 
@@ -55,6 +55,8 @@ Options de la commande `connect` :
 - `-a, --app <name>` : nom d'une application cible
 - `--all` : cibler toutes les applications détectées
 - `-l, --login <login>` : login utilisateur (sinon demandé en interactif)
+
+Lors du premier `connect` pour un environnement, vous saisissez login et mot de passe ; après une connexion réussie, ils sont enregistrés. Aux connexions suivantes pour le même environnement, vous pouvez choisir un identifiant déjà enregistré ou « Nouvel identifiant ». Les credentials sont stockés par environnement et par utilisateur dans un fichier **non versionné** (voir ci-dessous).
 
 Exemples :
 
@@ -86,12 +88,17 @@ dev-auth-fetcher list-apps
   - `VITE_ONE_SESSION_ID=...`
   - `VITE_RECETTE=<url>`
 
+- **Identifiants enregistrés** (par utilisateur, **non versionnés**, répertoire dans `.gitignore`) :
+  - Répertoire : `.dev-auth-fetcher/credentials/` (à la racine du répertoire depuis lequel vous lancez la CLI).
+  - Fichier : `<userId>.json` (par défaut `userId` = nom d’utilisateur système ; peut être surchargé avec la variable d’environnement `DEV_AUTH_USER`).
+  - Contenu : liste de profils (login + mot de passe) par environnement.
+
 ## Scripts
 
 | Commande      | Description                |
 |---------------|----------------------------|
-| `pnpm dev`    | Exécution en mode dev (ts-node) |
-| `pnpm build`  | Build de la CLI (sortie dans `dist/`) |
+| `pnpm dev`    | Exécution en mode dev (tsx, sources TypeScript ESM) |
+| `pnpm build`  | Build ESM de la CLI (sortie dans `dist/`) |
 | `pnpm test`   | Lance les tests (Vitest)   |
 | `pnpm lint`   | ESLint sur `src/`          |
 

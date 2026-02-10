@@ -1,6 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { AppDiscoveryError } from '../../utils/errors';
+
+import { AppDiscoveryError } from '../../utils/errors.js';
 
 export interface AppSummary {
   id: string;
@@ -23,7 +24,7 @@ export async function discoverApps(appsRoot: string): Promise<AppSummary[]> {
       throw new AppDiscoveryError(`Le répertoire des applications n'existe pas: ${appsRoot}`);
     }
     throw new AppDiscoveryError(
-      `Impossible de lire le répertoire des applications: ${nodeErr.message}`,
+      `Impossible de lire le répertoire des applications: ${nodeErr.message}`
     );
   }
 

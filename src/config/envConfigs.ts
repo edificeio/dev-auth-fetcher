@@ -1,7 +1,9 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { getEnvironmentsConfigDir } from '../utils/paths';
-import type { EnvironmentConfig } from './config.types';
+
+import { getEnvironmentsConfigDir } from '../utils/paths.js';
+
+import type { EnvironmentConfig } from './config.types.js';
 
 /**
  * Charge tous les fichiers config/environments/*.json et retourne la liste des environnements.
@@ -50,9 +52,21 @@ export async function getEnvironmentById(id: string): Promise<EnvironmentConfig 
  * Génère les fichiers de config d'environnements par défaut.
  */
 export const DEFAULT_ENVIRONMENTS: EnvironmentConfig[] = [
-  { id: 'recette-ode1', label: 'Recette ODE 1', url: 'https://recette-ode1.opendigitaleducation.com/' },
-  { id: 'recette-ode2', label: 'Recette ODE 2', url: 'https://recette-ode2.opendigitaleducation.com/' },
-  { id: 'recette-release', label: 'Recette Release', url: 'https://recette-release.opendigitaleducation.com/' },
+  {
+    id: 'recette-ode1',
+    label: 'Recette ODE 1',
+    url: 'https://recette-ode1.opendigitaleducation.com/',
+  },
+  {
+    id: 'recette-ode2',
+    label: 'Recette ODE 2',
+    url: 'https://recette-ode2.opendigitaleducation.com/',
+  },
+  {
+    id: 'recette-release',
+    label: 'Recette Release',
+    url: 'https://recette-release.opendigitaleducation.com/',
+  },
   { id: 'local', label: 'Local', url: 'http://localhost:8090/' },
 ];
 

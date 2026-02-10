@@ -10,19 +10,15 @@ export interface Logger {
 export function createLogger(): Logger {
   return {
     info(message: string): void {
-      // eslint-disable-next-line no-console
       console.log(chalk.blue(message));
     },
     success(message: string): void {
-      // eslint-disable-next-line no-console
       console.log(chalk.green(message));
     },
     error(message: string): void {
-      // eslint-disable-next-line no-console
       console.error(chalk.red(message));
     },
     warn(message: string): void {
-      // eslint-disable-next-line no-console
       console.warn(chalk.yellow(message));
     },
   };

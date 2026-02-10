@@ -1,6 +1,5 @@
-import { readEnvFile, mergeEnv, writeEnvFile } from '../../utils/envFile';
-import { VITE_ENV_KEYS } from '../../config/config.types';
-import type { EnvironmentConfig } from '../../config/config.types';
+import { VITE_ENV_KEYS } from '../../config/config.types.js';
+import { readEnvFile, writeEnvFile } from '../../utils/envFile.js';
 
 export interface EnvPatch {
   xsrfToken: string;
@@ -15,14 +14,16 @@ export interface EnvPatch {
 export async function updateAppEnv(
   envFilePath: string,
   patch: EnvPatch,
-  options: { login?: string } = {},
+  options: { login?: string } = {}
 ): Promise<void> {
   const existing = await readEnvFile(envFilePath);
   const headerComments: string[] = [];
   if (options.login) {
     headerComments.push(`# Connected as: ${options.login}`);
   }
-  headerComments.push(`# Date: ${new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris' })}`);
+  headerComments.push(
+    `# Date: ${new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris' })}`
+  );
 
   const newValues = {
     ...existing,
@@ -39,7 +40,7 @@ export async function updateAppEnv(
 export async function updateAppsEnv(
   appEnvPaths: Array<{ envPath: string }>,
   patch: EnvPatch,
-  options: { login?: string } = {},
+  options: { login?: string } = {}
 ): Promise<void> {
   for (const { envPath } of appEnvPaths) {
     await updateAppEnv(envPath, patch, options);

@@ -1,5 +1,5 @@
-import { OnboardingService } from '../../services/OnboardingService';
-import { createLogger } from '../../utils/logger';
+import { OnboardingService } from '../../services/OnboardingService.js';
+import { createLogger } from '../../utils/logger.js';
 
 const logger = createLogger();
 
@@ -11,4 +11,3 @@ export async function runOnboardCommand(): Promise<void> {
 
   logger.success('✅ Onboarding terminé.');
 }
-
