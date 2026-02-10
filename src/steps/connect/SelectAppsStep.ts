@@ -41,21 +41,25 @@ export async function selectAppsStep(
 
   const choices = [
     { name: 'Toutes les applications', value: CHOICE_ALL },
+    new inquirer.Separator(),
     ...discovered.map((a) => ({ name: a.name, value: a.id })),
   ];
 
-  const { selected } = await inquirer.prompt<{ selected: string }>([
+  const { selected } = await inquirer.prompt<{ selected: string[] }>([
     {
-      type: 'list',
+      type: 'checkbox',
       name: 'selected',
-      message: "Sélectionnez l'application à mettre à jour :",
+      message: "Sélectionnez les applications à mettre à jour :",
       choices,
     },
   ]);
 
-  if (selected === CHOICE_ALL) {
+  if (selected.includes(CHOICE_ALL)) {
     return { apps: discovered, allSelected: true };
   }
-  const app = discovered.find((a) => a.id === selected);
-  return { apps: app ? [app] : [], allSelected: false };
+  if (selected.length === 0) {
+    return { apps: [], allSelected: false };
+  }
+  const apps = discovered.filter((a) => selected.includes(a.id));
+  return { apps, allSelected: false };
 }
