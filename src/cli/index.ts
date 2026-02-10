@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { runOnboardCommand } from './commands/onboard';
 import { runConnectCommand } from './commands/connect';
+import { runListAppsCommand } from './commands/list-apps';
 
 const program = new Command();
 
@@ -31,9 +32,16 @@ program
     await runConnectCommand(options);
   });
 
+program
+  .command('list-apps')
+  .description('Lister les applications détectées (avec frontend) dans le répertoire configuré.')
+  .action(async () => {
+    await runListAppsCommand();
+  });
+
 program.parseAsync(process.argv).catch((error) => {
   // eslint-disable-next-line no-console
-  console.error('Erreur lors de lexécution de la CLI :', error);
+  console.error("Erreur lors de l'exécution de la CLI :", error);
   process.exit(1);
 });
 

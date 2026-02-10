@@ -1,18 +1,11 @@
-import { EnvSyncService } from '../../services/EnvSyncService';
+import { EnvSyncService, type ConnectOptions } from '../../services/EnvSyncService';
 import { createLogger } from '../../utils/logger';
 
-export interface ConnectCommandOptions {
-  env?: string;
-  app?: string;
-  all?: boolean;
-  login?: string;
-}
+export type { ConnectOptions };
 
 const logger = createLogger();
 
-export async function runConnectCommand(
-  options: ConnectCommandOptions,
-): Promise<void> {
+export async function runConnectCommand(options: ConnectOptions): Promise<void> {
   logger.info('🔗 Connexion aux environnements de recette…');
 
   const service = new EnvSyncService();
