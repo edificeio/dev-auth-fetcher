@@ -19,12 +19,6 @@ pnpm install
 pnpm run build
 ```
 
-Pour installer Playwright (navigateur headless utilisé pour l'authentification) :
-
-```bash
-pnpm exec playwright install chromium
-```
-
 ## Commandes
 
 | Commande           | Description |
@@ -127,8 +121,7 @@ dev-auth-fetcher list-apps
 
 - Les chemins sont gérés avec `path.join` / `path.resolve` pour être valides sur Windows, MacOS et Linux.
 - Les fichiers de configuration sont lus/écrits en UTF-8.
-- En cas d'échec de Playwright (navigateur non installé), exécuter :  
-  `pnpm exec playwright install chromium`
+- L'authentification s'effectue via un appel HTTP (fetch) vers l'endpoint `/auth/login` des environnements de recette.
 
 ## Licence
 
