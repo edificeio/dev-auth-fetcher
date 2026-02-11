@@ -49,7 +49,7 @@ export async function selectAppsStep(
     {
       type: 'checkbox',
       name: 'selected',
-      message: "Sélectionnez les applications à mettre à jour :",
+      message: 'Sélectionnez les applications à mettre à jour :',
       choices,
     },
   ]);
