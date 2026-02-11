@@ -11,7 +11,7 @@ import {
 } from '../config/credentialsStore.js';
 import { listEnvironments, getEnvironmentById } from '../config/envConfigs.js';
 import type { AuthCredentials } from '../core/auth/AuthClient.js';
-import { PlaywrightAuthClient } from '../core/auth/PlaywrightAuthClient.js';
+import { FetchAuthClient } from '../core/auth/FetchAuthClient.js';
 import { updateAppsEnv } from '../core/env/EnvManager.js';
 import { confirmAndRunStep } from '../steps/connect/ConfirmAndRunStep.js';
 import { selectAppsStep } from '../steps/connect/SelectAppsStep.js';
@@ -33,7 +33,7 @@ export interface ConnectOptions {
 }
 
 /**
- * Orchestration de la commande connect : choix de l'env, des apps, identifiant (existant ou nouveau), auth Playwright, mise à jour des .env.
+ * Orchestration de la commande connect : choix de l'env, des apps, identifiant (existant ou nouveau), auth fetch, mise à jour des .env.
  */
 export class EnvSyncService {
   async runInteractive(options: ConnectOptions): Promise<void> {
@@ -210,7 +210,7 @@ export class EnvSyncService {
     }
 
     const spinner = ora('Connexion en cours…').start();
-    const authClient = new PlaywrightAuthClient();
+    const authClient = new FetchAuthClient();
     try {
       const cookies = await authClient.loginAndGetCookies(env.url, { login, password });
       spinner.succeed('Connexion réussie.');
