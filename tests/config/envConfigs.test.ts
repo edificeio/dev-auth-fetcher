@@ -7,11 +7,12 @@ import {
 } from '../../src/config/envConfigs';
 
 describe('envConfigs', () => {
-  it('DEFAULT_ENVIRONMENTS contient les 4 environnements attendus', () => {
-    expect(DEFAULT_ENVIRONMENTS).toHaveLength(4);
+  it('DEFAULT_ENVIRONMENTS contient les 5 environnements attendus', () => {
+    expect(DEFAULT_ENVIRONMENTS).toHaveLength(5);
     const ids = DEFAULT_ENVIRONMENTS.map((e) => e.id);
     expect(ids).toContain('recette-ode1');
     expect(ids).toContain('recette-ode2');
+    expect(ids).toContain('recette-ode3');
     expect(ids).toContain('recette-release');
     expect(ids).toContain('local');
   });
