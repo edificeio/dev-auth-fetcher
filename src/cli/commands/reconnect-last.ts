@@ -13,10 +13,11 @@ export async function runReconnectLastCommand(): Promise<void> {
     return;
   }
 
-  const hasAppSelection = last.allApps === true || (last.appNames?.length ?? 0) > 0;
+  const appIdsOrNames = last.appIds ?? last.appNames;
+  const hasAppSelection = last.allApps === true || (appIdsOrNames?.length ?? 0) > 0;
   logger.info(
     hasAppSelection
-      ? `Reconnexion automatique : ${last.envId} / ${last.login} (${last.allApps ? 'toutes les apps' : last.appNames!.join(', ')})`
+      ? `Reconnexion automatique : ${last.envId} / ${last.login} (${last.allApps ? 'toutes les apps' : appIdsOrNames!.join(', ')})`
       : `Reconnexion : ${last.envId} / ${last.login} (sélection des apps à choisir)`
   );
 
@@ -26,8 +27,8 @@ export async function runReconnectLastCommand(): Promise<void> {
     login: last.login,
     ...(last.allApps === true
       ? { all: true }
-      : last.appNames?.length
-        ? { apps: last.appNames }
+      : appIdsOrNames?.length
+        ? { apps: appIdsOrNames }
         : {}),
     skipConfirm: hasAppSelection,
   });

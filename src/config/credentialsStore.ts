@@ -12,7 +12,9 @@ export interface LastConnection {
   login: string;
   /** true si "toutes les applications" avaient été sélectionnées */
   allApps?: boolean;
-  /** noms des applications sélectionnées (vide si allApps) */
+  /** ids des applications sélectionnées (prioritaire pour reconnect) */
+  appIds?: string[];
+  /** noms des applications (rétrocompatibilité, affichage) */
   appNames?: string[];
 }
 
@@ -114,13 +116,14 @@ export async function getLastConnection(): Promise<LastConnection | null> {
 export async function setLastConnection(
   envId: string,
   login: string,
-  appSelection?: { allApps: boolean; appNames: string[] }
+  appSelection?: { allApps: boolean; appIds: string[]; appNames?: string[] }
 ): Promise<void> {
   const store = await loadUserCredentialsStore();
   store.lastConnection = {
     envId,
     login,
     allApps: appSelection?.allApps,
+    appIds: appSelection?.appIds?.length ? appSelection.appIds : undefined,
     appNames: appSelection?.appNames?.length ? appSelection.appNames : undefined,
   };
   await saveUserCredentialsStore(store);

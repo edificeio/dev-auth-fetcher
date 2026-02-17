@@ -30,11 +30,17 @@ export async function selectAppsStep(
   }
 
   if (options.apps && options.apps.length > 0) {
-    const apps = discovered.filter((a) => options.apps!.includes(a.name));
-    return { apps, allSelected: false };
+    const byId = discovered.filter((a) => options.apps!.includes(a.id));
+    if (byId.length > 0) return { apps: byId, allSelected: false };
+    const byName = discovered.filter((a) => options.apps!.includes(a.name));
+    return { apps: byName, allSelected: false };
   }
 
   if (options.app) {
+    if (options.app.startsWith('entcore/')) {
+      const found = discovered.find((a) => a.id === options.app);
+      return { apps: found ? [found] : [], allSelected: false };
+    }
     const found = discovered.find((a) => a.name === options.app);
     return { apps: found ? [found] : [], allSelected: false };
   }
@@ -42,7 +48,10 @@ export async function selectAppsStep(
   const choices = [
     { name: 'Toutes les applications', value: CHOICE_ALL },
     new inquirer.Separator(),
-    ...discovered.map((a) => ({ name: a.name, value: a.id })),
+    ...discovered.map((a) => ({
+      name: a.id !== a.name ? `${a.name} (${a.id})` : a.name,
+      value: a.id,
+    })),
   ];
 
   const { selected } = await inquirer.prompt<{ selected: string[] }>([
