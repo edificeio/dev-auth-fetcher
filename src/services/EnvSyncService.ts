@@ -25,7 +25,7 @@ export interface ConnectOptions {
   env?: string;
   app?: string;
   all?: boolean;
-  /** Liste de noms d'apps (utilisée par reconnect-last). */
+  /** Liste d'ids ou noms d'apps (ex. app1, entcore/mediacentre). Utilisée par reconnect-last. */
   apps?: string[];
   login?: string;
   /** Si true, ne pas demander de confirmation (reconnect-last entièrement automatique). */
@@ -68,8 +68,8 @@ export class EnvSyncService {
         const appsDesc =
           last.allApps === true
             ? 'toutes les apps'
-            : last.appNames?.length
-              ? last.appNames.join(', ')
+            : (last.appIds?.length ?? last.appNames?.length)
+              ? (last.appIds ?? last.appNames)!.join(', ')
               : 'apps à choisir';
         const quickReconnectLabel = `🔄 Reconnexion rapide : ${last.envId} / ${last.login} (${appsDesc})`;
         envChoices.unshift({ name: quickReconnectLabel, value: RECONNECT_CHOICE });
@@ -85,14 +85,15 @@ export class EnvSyncService {
       ]);
 
       if (selectedEnvId === RECONNECT_CHOICE && last) {
-        const hasAppSelection = last.allApps === true || (last.appNames?.length ?? 0) > 0;
+        const appIdsOrNames = last.appIds ?? last.appNames;
+        const hasAppSelection = last.allApps === true || (appIdsOrNames?.length ?? 0) > 0;
         await this.runInteractive({
           env: last.envId,
           login: last.login,
           ...(last.allApps === true
             ? { all: true }
-            : last.appNames?.length
-              ? { apps: last.appNames }
+            : appIdsOrNames?.length
+              ? { apps: appIdsOrNames }
               : {}),
           skipConfirm: hasAppSelection,
         });
@@ -223,6 +224,7 @@ export class EnvSyncService {
       // Mémoriser la dernière connexion (envId, login, apps) pour reconnect-last.
       await setLastConnection(envId, login, {
         allApps: allSelected,
+        appIds: apps.map((a) => a.id),
         appNames: apps.map((a) => a.name),
       });
 

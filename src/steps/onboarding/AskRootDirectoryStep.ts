@@ -15,8 +15,7 @@ export async function askRootDirectoryStep(currentAppsRoot?: string): Promise<As
     {
       type: 'input',
       name: 'appsRoot',
-      message:
-        "Chemin racine des applications (répertoire contenant les dossiers d'apps avec frontend) :",
+      message: 'Chemin racine des applications ({app}/frontend ou entcore/{app}/frontend) :',
       default: defaultPath,
       validate: (input: string) => {
         if (!input?.trim()) return 'Le chemin ne peut pas être vide.';

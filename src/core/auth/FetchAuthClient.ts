@@ -58,7 +58,7 @@ export class FetchAuthClient implements IAuthClient {
       );
     }
 
-    let sessionId = cookieMap.get('oneSessionId') ?? '';
+    const sessionId = cookieMap.get('oneSessionId') ?? '';
     let xsrfToken = cookieMap.get('XSRF-TOKEN') ?? '';
 
     if (!xsrfToken || !sessionId) {

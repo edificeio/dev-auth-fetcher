@@ -8,7 +8,9 @@ CLI pour connecter un environnement local aux environnements de recette et injec
 
 - **Node.js** >= 24
 - **pnpm** (gestionnaire de paquets)
-- Les applications cibles ont une structure `/<racine_apps>/<application>/frontend/.env`
+- Les applications cibles ont une structure :
+  - à la racine : `/<racine_apps>/<application>/frontend/.env`
+  - ou sous entcore : `/<racine_apps>/entcore/<application>/frontend/.env`
 
 ## Installation
 
@@ -40,7 +42,7 @@ pnpm run dev onboard
 node bin/dev-auth-fetcher onboard
 ```
 
-Vous serez invité à saisir le chemin du répertoire contenant vos applications (chaque app ayant un dossier `frontend`). Les fichiers dans `config/environments/` (recette-ode1, recette-ode2, recette-release, local) sont créés par défaut.
+Vous serez invité à saisir le chemin du répertoire contenant vos applications : soit des dossiers `<app>/frontend` à la racine, soit (ou en plus) un sous-dossier `entcore` avec des apps `entcore/<app>/frontend`. Les fichiers dans `config/environments/` (recette-ode1, recette-ode2, recette-release, local) sont créés par défaut.
 
 ### Connexion et injection des cookies
 
@@ -55,7 +57,7 @@ node bin/dev-auth-fetcher connect
 Options de la commande `connect` :
 
 - `-e, --env <id>` : identifiant de l'environnement (ex. `recette-ode1`)
-- `-a, --app <name>` : nom d'une application cible
+- `-a, --app <name>` : nom ou id d'application (ex. `mon-app` ou `entcore/mediacentre` pour une app sous entcore)
 - `--all` : cibler toutes les applications détectées
 - `-l, --login <login>` : login utilisateur (sinon demandé en interactif)
 
@@ -66,6 +68,7 @@ Exemples :
 ```bash
 dev-auth-fetcher connect --env recette-ode1 --all
 dev-auth-fetcher connect -e recette-ode2 -a mon-app -l mon.login
+dev-auth-fetcher connect -e recette-ode1 -a entcore/mediacentre   # app sous entcore
 ```
 
 ### Reconnexion automatique (reconnect-last)
@@ -95,7 +98,7 @@ dev-auth-fetcher list-apps
 - **Environnements** : un fichier par environnement dans `config/environments/`  
   - Ex. `recette-ode1.json` : `{ "id", "label", "url" }`
 
-- **Fichier .env cible** (dans chaque `application/frontend/.env`) :
+- **Fichier .env cible** (dans chaque `application/frontend/.env` ou `entcore/application/frontend/.env`) :
   - `VITE_XSRF_TOKEN=...`
   - `VITE_ONE_SESSION_ID=...`
   - `VITE_RECETTE=<url>`

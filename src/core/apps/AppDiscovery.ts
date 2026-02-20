@@ -12,7 +12,9 @@ export interface AppSummary {
 
 /**
  * Parcourt appsRoot et détecte les applications ayant un dossier frontend.
- * Vérifie ou crée frontend/.env.
+ * Deux schémas supportés :
+ * - À la racine : {application}/frontend
+ * - Sous entcore : entcore/{application}/frontend (id = "entcore/{application}")
  */
 export async function discoverApps(appsRoot: string): Promise<AppSummary[]> {
   let entries: string[];
@@ -29,6 +31,8 @@ export async function discoverApps(appsRoot: string): Promise<AppSummary[]> {
   }
 
   const apps: AppSummary[] = [];
+
+  // Schéma racine : {application}/frontend
   for (const name of entries) {
     const appPath = path.join(appsRoot, name);
     const stat = await fs.stat(appPath).catch(() => null);
@@ -39,7 +43,6 @@ export async function discoverApps(appsRoot: string): Promise<AppSummary[]> {
     if (!frontendStat?.isDirectory()) continue;
 
     const envPath = path.join(frontendPath, '.env');
-    // On ne crée pas le .env ici; EnvManager le fera à la première écriture.
     apps.push({
       id: name,
       name,
@@ -47,5 +50,35 @@ export async function discoverApps(appsRoot: string): Promise<AppSummary[]> {
       envPath,
     });
   }
+
+  // Schéma entcore : entcore/{application}/frontend (id = "entcore/{application}")
+  const entcorePath = path.join(appsRoot, 'entcore');
+  const entcoreStat = await fs.stat(entcorePath).catch(() => null);
+  if (entcoreStat?.isDirectory()) {
+    let entcoreEntries: string[];
+    try {
+      entcoreEntries = await fs.readdir(entcorePath);
+    } catch {
+      entcoreEntries = [];
+    }
+    for (const appName of entcoreEntries) {
+      const appPath = path.join(entcorePath, appName);
+      const stat = await fs.stat(appPath).catch(() => null);
+      if (!stat?.isDirectory()) continue;
+
+      const frontendPath = path.join(appPath, 'frontend');
+      const frontendStat = await fs.stat(frontendPath).catch(() => null);
+      if (!frontendStat?.isDirectory()) continue;
+
+      const envPath = path.join(frontendPath, '.env');
+      apps.push({
+        id: `entcore/${appName}`,
+        name: appName,
+        path: appPath,
+        envPath,
+      });
+    }
+  }
+
   return apps.sort((a, b) => a.name.localeCompare(b.name));
 }
