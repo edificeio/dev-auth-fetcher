@@ -51,6 +51,34 @@ export async function discoverApps(appsRoot: string): Promise<AppSummary[]> {
     });
   }
 
+  // Schéma racine direct : {application}/.env + package.json (sans sous-dossier frontend)
+  for (const name of entries) {
+    const appPath = path.join(appsRoot, name);
+    const stat = await fs.stat(appPath).catch(() => null);
+    if (!stat?.isDirectory()) continue;
+
+    // Ignorer si déjà détecté via le schéma frontend
+    if (apps.some((a) => a.id === name)) continue;
+
+    const rootEnvPath = path.join(appPath, '.env');
+    const rootEnvStat = await fs.stat(rootEnvPath).catch(() => null);
+    if (!rootEnvStat?.isFile()) continue;
+
+    const packageJsonStat = await fs.stat(path.join(appPath, 'package.json')).catch(() => null);
+    if (!packageJsonStat?.isFile()) continue;
+
+    const frontendPath = path.join(appPath, 'frontend');
+    const frontendStat = await fs.stat(frontendPath).catch(() => null);
+    if (frontendStat?.isDirectory()) continue;
+
+    apps.push({
+      id: name,
+      name,
+      path: appPath,
+      envPath: rootEnvPath,
+    });
+  }
+
   // Schéma entcore : entcore/{application}/frontend (id = "entcore/{application}")
   const entcorePath = path.join(appsRoot, 'entcore');
   const entcoreStat = await fs.stat(entcorePath).catch(() => null);
