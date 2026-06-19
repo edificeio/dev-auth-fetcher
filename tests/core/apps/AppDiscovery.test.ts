@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm } from 'fs/promises';
+import { mkdtemp, mkdir, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
@@ -68,5 +68,43 @@ describe('AppDiscovery', () => {
     expect(entcoreApp!.name).toBe('app1');
     expect(rootApp!.path).not.toContain('entcore');
     expect(entcoreApp!.path).toContain('entcore');
+  });
+
+  it('détecte une app racine directe avec .env + package.json (sans dossier frontend)', async () => {
+    await mkdir(join(tempRoot, 'app1'), { recursive: true });
+    await writeFile(join(tempRoot, 'app1', '.env'), '');
+    await writeFile(join(tempRoot, 'app1', 'package.json'), '{}');
+    const apps = await discoverApps(tempRoot);
+    expect(apps).toHaveLength(1);
+    expect(apps[0].id).toBe('app1');
+    expect(apps[0].envPath).toBe(join(tempRoot, 'app1', '.env'));
+  });
+
+  it('ignore le schéma racine direct si un dossier frontend existe (priorité frontend)', async () => {
+    await mkdir(join(tempRoot, 'app1', 'frontend'), { recursive: true });
+    await writeFile(join(tempRoot, 'app1', '.env'), '');
+    await writeFile(join(tempRoot, 'app1', 'package.json'), '{}');
+    const apps = await discoverApps(tempRoot);
+    expect(apps).toHaveLength(1);
+    expect(apps[0].envPath).toContain('frontend');
+    expect(apps[0].envPath).toContain('.env');
+  });
+
+  it('détecte une app entcore TS via src/main/ts', async () => {
+    await mkdir(join(tempRoot, 'entcore', 'app1', 'src', 'main', 'ts'), { recursive: true });
+    const apps = await discoverApps(tempRoot);
+    expect(apps).toHaveLength(1);
+    expect(apps[0].id).toBe('entcore/app1');
+    expect(apps[0].name).toBe('app1');
+    expect(apps[0].envPath).toBe(join(tempRoot, 'entcore', 'app1', 'src', 'main', 'ts', '.env'));
+  });
+
+  it('ignore le schéma entcore TS si un dossier frontend existe (priorité frontend)', async () => {
+    await mkdir(join(tempRoot, 'entcore', 'app1', 'frontend'), { recursive: true });
+    await mkdir(join(tempRoot, 'entcore', 'app1', 'src', 'main', 'ts'), { recursive: true });
+    const apps = await discoverApps(tempRoot);
+    expect(apps).toHaveLength(1);
+    expect(apps[0].envPath).toContain('frontend');
+    expect(apps[0].envPath).toContain('.env');
   });
 });
