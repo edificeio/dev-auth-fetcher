@@ -10,11 +10,21 @@ export interface AppSummary {
   envPath: string;
 }
 
+async function isDirectory(p: string): Promise<boolean> {
+  return (await fs.stat(p).catch(() => null))?.isDirectory() ?? false;
+}
+
+async function isFile(p: string): Promise<boolean> {
+  return (await fs.stat(p).catch(() => null))?.isFile() ?? false;
+}
+
 /**
- * Parcourt appsRoot et détecte les applications ayant un dossier frontend.
- * Deux schémas supportés :
- * - À la racine : {application}/frontend
- * - Sous entcore : entcore/{application}/frontend (id = "entcore/{application}")
+ * Parcourt appsRoot et détecte les applications frontend.
+ * Quatre schémas supportés (par ordre de priorité dans chaque zone) :
+ * - Racine : {application}/frontend
+ * - Racine direct : {application}/.env + package.json (sans sous-dossier frontend)
+ * - Entcore : entcore/{application}/frontend (id = "entcore/{application}")
+ * - Entcore TS : entcore/{application}/src/main/ts (id = "entcore/{application}")
  */
 export async function discoverApps(appsRoot: string): Promise<AppSummary[]> {
   let entries: string[];
@@ -35,77 +45,69 @@ export async function discoverApps(appsRoot: string): Promise<AppSummary[]> {
   // Schéma racine : {application}/frontend
   for (const name of entries) {
     const appPath = path.join(appsRoot, name);
-    const stat = await fs.stat(appPath).catch(() => null);
-    if (!stat?.isDirectory()) continue;
+    if (!(await isDirectory(appPath))) continue;
 
-    const frontendPath = path.join(appPath, 'frontend');
-    const frontendStat = await fs.stat(frontendPath).catch(() => null);
-    if (!frontendStat?.isDirectory()) continue;
+    const frontendDir = path.join(appPath, 'frontend');
+    if (!(await isDirectory(frontendDir))) continue;
 
-    const envPath = path.join(frontendPath, '.env');
-    apps.push({
-      id: name,
-      name,
-      path: appPath,
-      envPath,
-    });
+    apps.push({ id: name, name, path: appPath, envPath: path.join(frontendDir, '.env') });
   }
 
   // Schéma racine direct : {application}/.env + package.json (sans sous-dossier frontend)
   for (const name of entries) {
-    const appPath = path.join(appsRoot, name);
-    const stat = await fs.stat(appPath).catch(() => null);
-    if (!stat?.isDirectory()) continue;
-
-    // Ignorer si déjà détecté via le schéma frontend
     if (apps.some((a) => a.id === name)) continue;
 
-    const rootEnvPath = path.join(appPath, '.env');
-    const rootEnvStat = await fs.stat(rootEnvPath).catch(() => null);
-    if (!rootEnvStat?.isFile()) continue;
+    const appPath = path.join(appsRoot, name);
+    if (!(await isDirectory(appPath))) continue;
+    if (!(await isFile(path.join(appPath, '.env')))) continue;
+    if (!(await isFile(path.join(appPath, 'package.json')))) continue;
+    if (await isDirectory(path.join(appPath, 'frontend'))) continue;
 
-    const packageJsonStat = await fs.stat(path.join(appPath, 'package.json')).catch(() => null);
-    if (!packageJsonStat?.isFile()) continue;
+    apps.push({ id: name, name, path: appPath, envPath: path.join(appPath, '.env') });
+  }
 
-    const frontendPath = path.join(appPath, 'frontend');
-    const frontendStat = await fs.stat(frontendPath).catch(() => null);
-    if (frontendStat?.isDirectory()) continue;
+  const entcorePath = path.join(appsRoot, 'entcore');
+  if (!(await isDirectory(entcorePath))) return apps.sort((a, b) => a.name.localeCompare(b.name));
 
-    apps.push({
-      id: name,
-      name,
-      path: appPath,
-      envPath: rootEnvPath,
-    });
+  let entcoreEntries: string[];
+  try {
+    entcoreEntries = await fs.readdir(entcorePath);
+  } catch {
+    entcoreEntries = [];
   }
 
   // Schéma entcore : entcore/{application}/frontend (id = "entcore/{application}")
-  const entcorePath = path.join(appsRoot, 'entcore');
-  const entcoreStat = await fs.stat(entcorePath).catch(() => null);
-  if (entcoreStat?.isDirectory()) {
-    let entcoreEntries: string[];
-    try {
-      entcoreEntries = await fs.readdir(entcorePath);
-    } catch {
-      entcoreEntries = [];
-    }
-    for (const appName of entcoreEntries) {
-      const appPath = path.join(entcorePath, appName);
-      const stat = await fs.stat(appPath).catch(() => null);
-      if (!stat?.isDirectory()) continue;
+  for (const appName of entcoreEntries) {
+    const appPath = path.join(entcorePath, appName);
+    if (!(await isDirectory(appPath))) continue;
 
-      const frontendPath = path.join(appPath, 'frontend');
-      const frontendStat = await fs.stat(frontendPath).catch(() => null);
-      if (!frontendStat?.isDirectory()) continue;
+    const frontendDir = path.join(appPath, 'frontend');
+    if (!(await isDirectory(frontendDir))) continue;
 
-      const envPath = path.join(frontendPath, '.env');
-      apps.push({
-        id: `entcore/${appName}`,
-        name: appName,
-        path: appPath,
-        envPath,
-      });
-    }
+    apps.push({
+      id: `entcore/${appName}`,
+      name: appName,
+      path: appPath,
+      envPath: path.join(frontendDir, '.env'),
+    });
+  }
+
+  // Schéma entcore TS : entcore/{application}/src/main/ts (id = "entcore/{application}")
+  for (const appName of entcoreEntries) {
+    if (apps.some((a) => a.id === `entcore/${appName}`)) continue;
+
+    const appPath = path.join(entcorePath, appName);
+    if (!(await isDirectory(appPath))) continue;
+
+    const tsDir = path.join(appPath, 'src', 'main', 'ts');
+    if (!(await isDirectory(tsDir))) continue;
+
+    apps.push({
+      id: `entcore/${appName}`,
+      name: appName,
+      path: appPath,
+      envPath: path.join(tsDir, '.env'),
+    });
   }
 
   return apps.sort((a, b) => a.name.localeCompare(b.name));
