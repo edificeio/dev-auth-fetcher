@@ -42,7 +42,7 @@ pnpm run dev onboard
 node bin/dev-auth-fetcher onboard
 ```
 
-Vous serez invité à saisir le chemin du répertoire contenant vos applications : soit des dossiers `<app>/frontend` à la racine, soit (ou en plus) un sous-dossier `entcore` avec des apps `entcore/<app>/frontend`. Les fichiers dans `config/environments/` (recette-ode1, recette-ode2, recette-release, local) sont créés par défaut.
+Vous serez invité à saisir le chemin du répertoire contenant vos applications : soit des dossiers `<app>/frontend` à la racine, soit (ou en plus) un sous-dossier `entcore` avec des apps `entcore/<app>/frontend`. Les environnements par défaut (recette-ode1…ode4, recette-release, local) sont seedés dans `~/.dev-auth-fetcher/environments/`.
 
 ### Connexion et injection des cookies
 
@@ -125,8 +125,8 @@ Les données **non versionnées** (propres à chaque dev) sont centralisées dan
 
   > Migration automatique : si d'anciens fichiers existent (`config/app.config.json` et `./.dev-auth-fetcher/credentials/` à la racine du repo), ils sont repris une fois vers `~/.dev-auth-fetcher/` au premier lancement.
 
-- **Environnements** (versionnés, partagés par l'équipe) : un fichier par environnement dans `config/environments/` du repo
-  - Ex. `recette-ode1.json` : `{ "id", "label", "url" }`
+- **Environnements** : un fichier par environnement dans `~/.dev-auth-fetcher/environments/` (ex. `recette-ode1.json` : `{ "id", "label", "url" }`).
+  - La **liste partagée par défaut** est définie dans le code (`DEFAULT_ENVIRONMENTS`, versionné) et seedée automatiquement au premier usage. Pour ajouter/modifier un environnement partagé, éditer ce tableau ; pour un environnement perso, déposer un `.json` dans le dossier ci-dessus.
 
 - **Fichier .env cible** (dans chaque `application/frontend/.env` ou `entcore/application/frontend/.env`) :
   - `VITE_XSRF_TOKEN=...`

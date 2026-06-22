@@ -2,12 +2,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 
 import { AppConfigError } from '../utils/errors.js';
-import {
-  getAppConfigPath,
-  getEnvironmentsConfigDir,
-  getLegacyAppConfigPath,
-  getUserDataDir,
-} from '../utils/paths.js';
+import { getAppConfigPath, getLegacyAppConfigPath, getUserDataDir } from '../utils/paths.js';
 
 import type { AppConfig } from './config.types.js';
 
@@ -99,8 +94,6 @@ export async function setDefaultEnvironmentId(envId: string): Promise<void> {
 export async function ensureAppConfigExists(): Promise<AppConfig> {
   const config = await loadAppConfig();
   if (config) return config;
-  await fs.mkdir(getUserDataDir(), { recursive: true });
-  await fs.mkdir(getEnvironmentsConfigDir(), { recursive: true });
   const newConfig: AppConfig = { ...DEFAULT_APP_CONFIG, appsRoot: process.cwd() };
   await saveAppConfig(newConfig);
   return newConfig;

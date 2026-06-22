@@ -1,14 +1,46 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
-import { getEnvironmentsConfigDir } from '../utils/paths.js';
+import { getEnvironmentsConfigDir, getLegacyEnvironmentsConfigDir } from '../utils/paths.js';
 
 import type { EnvironmentConfig } from './config.types.js';
 
+/** Liste les fichiers .json d'un répertoire ; [] si absent. */
+async function listJsonFiles(dir: string): Promise<string[]> {
+  try {
+    return (await fs.readdir(dir)).filter((n) => n.endsWith('.json'));
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw err;
+  }
+}
+
 /**
- * Charge tous les fichiers config/environments/*.json et retourne la liste des environnements.
+ * Garantit que le répertoire des environnements (dossier utilisateur) est peuplé :
+ * migre une fois l'ancien dossier versionné du repo s'il existe, sinon seede les défauts du code.
+ */
+async function ensureEnvironmentsSeeded(): Promise<void> {
+  const dir = getEnvironmentsConfigDir();
+  if ((await listJsonFiles(dir)).length > 0) return;
+
+  const legacyDir = getLegacyEnvironmentsConfigDir();
+  const legacyFiles = legacyDir !== dir ? await listJsonFiles(legacyDir) : [];
+  if (legacyFiles.length > 0) {
+    await fs.mkdir(dir, { recursive: true });
+    for (const name of legacyFiles) {
+      await fs.copyFile(path.join(legacyDir, name), path.join(dir, name));
+    }
+    return;
+  }
+
+  await generateDefaultEnvironmentConfigs();
+}
+
+/**
+ * Charge tous les environnements depuis le dossier utilisateur (seedé si nécessaire).
  */
 export async function listEnvironments(): Promise<EnvironmentConfig[]> {
+  await ensureEnvironmentsSeeded();
   const dir = getEnvironmentsConfigDir();
   let entries: string[];
   try {

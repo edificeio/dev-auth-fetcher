@@ -1,4 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { mkdtemp, rm } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
+
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 import {
   listEnvironments,
@@ -7,6 +11,18 @@ import {
 } from '../../src/config/envConfigs.js';
 
 describe('envConfigs', () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'env-configs-test-'));
+    process.env.DEV_AUTH_FETCHER_HOME = tempDir;
+  });
+
+  afterEach(async () => {
+    delete process.env.DEV_AUTH_FETCHER_HOME;
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
   it('DEFAULT_ENVIRONMENTS contient les 6 environnements attendus', () => {
     expect(DEFAULT_ENVIRONMENTS).toHaveLength(6);
     const ids = DEFAULT_ENVIRONMENTS.map((e) => e.id);

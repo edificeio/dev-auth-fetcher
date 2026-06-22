@@ -47,11 +47,11 @@ export function getCredentialsDir(): string {
 }
 
 /**
- * Répertoire des définitions d'environnements : versionnées et partagées,
- * elles restent dans le repo (`<cwd>/config/environments`).
+ * Répertoire des définitions d'environnements (dans le dossier utilisateur), seedé
+ * depuis les défauts du code. Indépendant du répertoire de lancement.
  */
 export function getEnvironmentsConfigDir(): string {
-  return resolvePath(process.cwd(), 'config', 'environments');
+  return path.join(getUserDataDir(), 'environments');
 }
 
 /** Ancien emplacement de la config (pour migration unique). */
@@ -62,4 +62,9 @@ export function getLegacyAppConfigPath(): string {
 /** Ancien répertoire des credentials (pour migration unique). */
 export function getLegacyCredentialsDir(): string {
   return path.join(process.cwd(), DATA_DIR_NAME, 'credentials');
+}
+
+/** Ancien répertoire des environnements versionnés dans le repo (pour migration unique). */
+export function getLegacyEnvironmentsConfigDir(): string {
+  return resolvePath(process.cwd(), 'config', 'environments');
 }
