@@ -10,7 +10,10 @@ import {
   getProfilesForEnvironment,
   addOrUpdateProfileForEnvironment,
   getLastConnection,
-  setLastConnection,
+  getRecentConnections,
+  getLoginRecency,
+  recordConnection,
+  connectionSignature,
   type UserCredentialsStore,
 } from '../../src/config/credentialsStore.js';
 
@@ -89,12 +92,63 @@ describe.sequential('credentialsStore', () => {
     ]);
   });
 
-  it('setLastConnection et getLastConnection gèrent la dernière connexion', async () => {
+  it('recordConnection / getLastConnection : la dernière connexion remonte en tête', async () => {
     expect(await getLastConnection()).toBeNull();
-    await setLastConnection('recette-ode1', 'user1');
+    await recordConnection('recette-ode1', 'user1');
     const last = await getLastConnection();
-    expect(last).not.toBeNull();
     expect(last?.envId).toBe('recette-ode1');
     expect(last?.login).toBe('user1');
+  });
+
+  it('recordConnection plafonne à 3 et garde le plus-récent-d’abord', async () => {
+    await recordConnection('recette-ode1', 'a');
+    await recordConnection('recette-ode1', 'b');
+    await recordConnection('recette-ode1', 'c');
+    await recordConnection('recette-ode1', 'd');
+    const recents = await getRecentConnections();
+    expect(recents).toHaveLength(3);
+    expect(recents.map((r) => r.login)).toEqual(['d', 'c', 'b']);
+  });
+
+  it('recordConnection déduplique le même combo et le remonte sans doublon', async () => {
+    await recordConnection('recette-ode1', 'a', { allApps: false, appIds: ['app1'], appNames: [] });
+    await recordConnection('recette-ode1', 'b', { allApps: false, appIds: ['app1'], appNames: [] });
+    await recordConnection('recette-ode1', 'a', { allApps: false, appIds: ['app1'], appNames: [] });
+    const recents = await getRecentConnections();
+    expect(recents.map((r) => r.login)).toEqual(['a', 'b']);
+  });
+
+  it('recordConnection : un jeu d’apps ou un login différent crée une entrée distincte', async () => {
+    await recordConnection('recette-ode1', 'a', { allApps: false, appIds: ['app1'], appNames: [] });
+    await recordConnection('recette-ode1', 'a', { allApps: false, appIds: ['app2'], appNames: [] });
+    await recordConnection('recette-ode1', 'b', { allApps: false, appIds: ['app1'], appNames: [] });
+    expect(await getRecentConnections()).toHaveLength(3);
+  });
+
+  it('connectionSignature est insensible à l’ordre des apps', () => {
+    const a = connectionSignature({ envId: 'e', login: 'u', appIds: ['x', 'y'] });
+    const b = connectionSignature({ envId: 'e', login: 'u', appIds: ['y', 'x'] });
+    expect(a).toBe(b);
+  });
+
+  it('migre un store legacy lastConnection vers recentConnections', async () => {
+    await saveUserCredentialsStore({
+      environmentProfiles: {},
+      lastConnection: { envId: 'recette-ode2', login: 'legacy' },
+    } as UserCredentialsStore);
+    const recents = await getRecentConnections();
+    expect(recents).toHaveLength(1);
+    expect(recents[0].envId).toBe('recette-ode2');
+    expect(recents[0].login).toBe('legacy');
+    expect(typeof recents[0].connectedAt).toBe('number');
+  });
+
+  it('getLoginRecency retourne le connectedAt max par login, scopé à l’env', async () => {
+    await recordConnection('recette-ode1', 'a');
+    await recordConnection('recette-ode2', 'b');
+    await recordConnection('recette-ode1', 'a', { allApps: true, appIds: [], appNames: [] });
+    const recency = await getLoginRecency('recette-ode1');
+    expect(recency.has('a')).toBe(true);
+    expect(recency.has('b')).toBe(false);
   });
 });

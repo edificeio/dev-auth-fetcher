@@ -4,9 +4,16 @@ import { join } from 'path';
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
-import { saveUserCredentialsStore } from '../../src/config/credentialsStore.js';
+import {
+  getRecentConnections,
+  saveUserCredentialsStore,
+} from '../../src/config/credentialsStore.js';
 import type { AuthCredentials, AuthCookies, IAuthClient } from '../../src/core/auth/AuthClient.js';
-import { EnvSyncService } from '../../src/services/EnvSyncService.js';
+import {
+  EnvSyncService,
+  describeFreshness,
+  isSessionStale,
+} from '../../src/services/EnvSyncService.js';
 import { readEnvFile } from '../../src/utils/envFile.js';
 import { AuthError } from '../../src/utils/errors.js';
 
@@ -70,7 +77,8 @@ describe.sequential('EnvSyncService.runInteractive', () => {
   });
 
   it('authentifie et injecte les cookies dans le .env de l’app (sans prompt)', async () => {
-    const client = new FakeAuthClient({ xsrfToken: 'xsrf-123', sessionId: 'sess-456' });
+    const expiresAt = Date.now() + 3600 * 1000;
+    const client = new FakeAuthClient({ xsrfToken: 'xsrf-123', sessionId: 'sess-456', expiresAt });
     const service = new EnvSyncService(client);
 
     await service.runInteractive({ env: ENV_ID, login: LOGIN, apps: ['myapp'], skipConfirm: true });
@@ -86,6 +94,11 @@ describe.sequential('EnvSyncService.runInteractive', () => {
     expect(env.VITE_ONE_SESSION_ID).toBe('sess-456');
     expect(env.VITE_RECETTE).toBe(ENV_URL);
     expect(env.EXISTING).toBe('keepme');
+
+    // la connexion est enregistrée dans l'historique avec l'expiration propagée
+    const recents = await getRecentConnections();
+    expect(recents[0]).toMatchObject({ envId: ENV_ID, login: LOGIN, appIds: ['myapp'], expiresAt });
+    expect(typeof recents[0].connectedAt).toBe('number');
   });
 
   it("ne touche pas au .env si l'authentification échoue", async () => {
@@ -114,5 +127,31 @@ describe.sequential('EnvSyncService.runInteractive', () => {
     expect(client.calls).toHaveLength(0);
     const env = await readEnvFile(appEnvPath);
     expect(env).toEqual({ EXISTING: 'keepme' });
+  });
+});
+
+describe('freshness helpers', () => {
+  const base = { envId: 'e', login: 'u' };
+
+  it('isSessionStale utilise expiresAt quand présent', () => {
+    const now = 1_000_000;
+    expect(isSessionStale({ ...base, connectedAt: now, expiresAt: now + 1000 }, now)).toBe(false);
+    expect(isSessionStale({ ...base, connectedAt: now, expiresAt: now - 1000 }, now)).toBe(true);
+  });
+
+  it('isSessionStale retombe sur un seuil de temps sans expiresAt', () => {
+    const now = 100 * 60 * 60 * 1000;
+    expect(isSessionStale({ ...base, connectedAt: now - 60 * 1000 }, now)).toBe(false);
+    expect(isSessionStale({ ...base, connectedAt: now - 9 * 60 * 60 * 1000 }, now)).toBe(true);
+  });
+
+  it('describeFreshness affiche l’âge et signale une session expirée', () => {
+    const now = 10_000_000;
+    const fresh = describeFreshness({ ...base, connectedAt: now - 3 * 60 * 1000 }, now);
+    expect(fresh).toContain('connecté il y a 3 min');
+    expect(fresh).not.toContain('⚠️');
+
+    const stale = describeFreshness({ ...base, connectedAt: now, expiresAt: now - 1 }, now);
+    expect(stale).toContain('⚠️');
   });
 });

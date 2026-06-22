@@ -25,6 +25,34 @@ function parseCookie(setCookieHeader: string): { name: string; value: string } |
 }
 
 /**
+ * Estime l'expiration (ms epoch) d'un cookie depuis ses attributs `Max-Age` (prioritaire,
+ * en secondes) ou `Expires` (date HTTP). Retourne undefined si aucun n'est exploitable.
+ */
+export function parseCookieExpiry(
+  setCookieHeader: string,
+  now: number = Date.now()
+): number | undefined {
+  const attributes = setCookieHeader.split(';').slice(1);
+  for (const attr of attributes) {
+    const [rawKey, ...rawVal] = attr.split('=');
+    const key = rawKey.trim().toLowerCase();
+    const val = rawVal.join('=').trim();
+    if (key === 'max-age') {
+      const seconds = Number(val);
+      if (Number.isFinite(seconds)) return now + seconds * 1000;
+    }
+  }
+  for (const attr of attributes) {
+    const [rawKey, ...rawVal] = attr.split('=');
+    if (rawKey.trim().toLowerCase() === 'expires') {
+      const ts = Date.parse(rawVal.join('=').trim());
+      if (!Number.isNaN(ts)) return ts;
+    }
+  }
+  return undefined;
+}
+
+/**
  * Implémentation fetch : POST vers /auth/login, extraction des cookies depuis Set-Cookie.
  *
  * Fragilité connue : dépend de la forme actuelle du flux d'auth ENT (endpoint
@@ -54,11 +82,15 @@ export class FetchAuthClient implements IAuthClient {
 
     const setCookies = response.headers.getSetCookie();
     const cookieMap = new Map<string, string>();
+    let expiresAt: number | undefined;
 
     for (const header of setCookies) {
       const parsed = parseCookie(header);
       if (parsed) {
         cookieMap.set(parsed.name, parsed.value);
+        if (parsed.name === 'oneSessionId') {
+          expiresAt = parseCookieExpiry(header);
+        }
       }
     }
 
@@ -85,7 +117,7 @@ export class FetchAuthClient implements IAuthClient {
       // Conserver la valeur brute si le décodage échoue
     }
 
-    return { xsrfToken, sessionId };
+    return { xsrfToken, sessionId, expiresAt };
   }
 
   /**

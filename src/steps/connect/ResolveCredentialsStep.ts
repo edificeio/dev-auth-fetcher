@@ -1,6 +1,6 @@
 import inquirer from 'inquirer';
 
-import { getProfilesForEnvironment } from '../../config/credentialsStore.js';
+import { getLoginRecency, getProfilesForEnvironment } from '../../config/credentialsStore.js';
 
 const CHOICE_NEW_CREDENTIALS = '__new__';
 
@@ -64,8 +64,14 @@ export async function resolveCredentialsStep(
   }
 
   if (savedProfiles.length > 0) {
+    // Faire remonter les derniers logins utilisés (récence décroissante), alpha en égalité.
+    const recency = await getLoginRecency(envId);
+    const ordered = [...savedProfiles].sort((a, b) => {
+      const diff = (recency.get(b.login) ?? 0) - (recency.get(a.login) ?? 0);
+      return diff !== 0 ? diff : a.login.localeCompare(b.login);
+    });
     const choices = [
-      ...savedProfiles.map((p) => ({
+      ...ordered.map((p) => ({
         name: p.role ? `${p.login} (${p.role})` : p.login,
         value: p.login,
       })),

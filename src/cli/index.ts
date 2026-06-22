@@ -30,6 +30,10 @@ program
   .option('-a, --app <name>', "Nom de l'application cible")
   .option('--all', 'Cibler toutes les applications détectées')
   .option('-l, --login <login>', "Login de l'utilisateur à utiliser")
+  .option(
+    '--watch',
+    'Garder la session fraîche : ré-authentifier et réinjecter avant expiration (Vite recharge la page à chaque refresh)'
+  )
   .action(async (options) => {
     await runConnectCommand(options);
   });

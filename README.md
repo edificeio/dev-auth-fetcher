@@ -60,8 +60,13 @@ Options de la commande `connect` :
 - `-a, --app <name>` : nom ou id d'application (ex. `mon-app` ou `entcore/mediacentre` pour une app sous entcore)
 - `--all` : cibler toutes les applications détectées
 - `-l, --login <login>` : login utilisateur (sinon demandé en interactif)
+- `--watch` : garder la session fraîche (voir [Mode watch](#mode-watch--watch))
 
-Lors du premier `connect` pour un environnement, vous saisissez **login**, **mot de passe** et éventuellement un **rôle** (ex. Enseignant, Élève) pour identifier le compte. Après une connexion réussie, ces informations sont enregistrées. Aux connexions suivantes pour le même environnement, vous pouvez choisir un identifiant déjà enregistré (affiché avec le rôle entre parenthèses) ou « Nouvel identifiant ». Les credentials sont stockés par environnement et par utilisateur dans un fichier **non versionné** (voir [Structure des fichiers](#structure-des-fichiers)).
+Lors du premier `connect` pour un environnement, vous saisissez **login**, **mot de passe** et éventuellement un **rôle** (ex. Enseignant, Élève) pour identifier le compte. Après une connexion réussie, ces informations sont enregistrées. Aux connexions suivantes pour le même environnement, vous pouvez choisir un identifiant déjà enregistré (affiché avec le rôle entre parenthèses) ou « Nouvel identifiant ». Les identifiants sont **triés en faisant remonter les derniers utilisés**. Les credentials sont stockés par environnement et par utilisateur dans un fichier **non versionné** (voir [Structure des fichiers](#structure-des-fichiers)).
+
+#### Reconnexions rapides
+
+En mode interactif (sans `-e`), `connect` propose en tête de liste les **dernières connexions** (jusqu'à 3 : combo *environnement / login / apps*), chacune annotée de sa fraîcheur (« connecté il y a 3h12 », avec ⚠️ si la session est probablement expirée). Sélectionnez-en une pour la rejouer directement. Pratique quand on jongle entre plusieurs sujets avec des comptes différents.
 
 Exemples :
 
@@ -80,6 +85,18 @@ dev-auth-fetcher reconnect-last
 ```
 
 À utiliser après avoir fait au moins une fois `connect` (avec sélection d'apps). Si aucune dernière connexion n'est enregistrée, un message vous invitera à lancer d'abord `connect`.
+
+### Mode watch (`--watch`)
+
+Les cookies de session expirent au bout d'un certain temps : votre front local se met alors à recevoir des 401. Le mode `--watch` garde la session fraîche en **ré-authentifiant et réinjectant les `.env` automatiquement avant l'expiration**, tant que le process tourne (premier plan, `Ctrl+C` pour arrêter).
+
+```bash
+dev-auth-fetcher connect -e recette-ode1 -a mon-app --watch
+```
+
+Le délai de rafraîchissement est calculé à partir de l'expiration estimée du cookie de session (attribut `Max-Age`/`Expires`), avec un repli sur un intervalle fixe si cette info est absente.
+
+> ⚠️ **À savoir** : chaque rafraîchissement réécrit le `.env`. Vite **surveille les `.env`** et **redémarre le dev-server** quand ils changent, ce qui provoque un **rechargement complet de la page** (perte de l'état HMR). Le mode watch est donc surtout utile pour de longues sessions ; pour un coup ponctuel, préférez `reconnect-last`.
 
 ### Lister les applications
 
@@ -106,7 +123,7 @@ dev-auth-fetcher list-apps
 - **Identifiants enregistrés** (par utilisateur, **non versionnés**, répertoire dans `.gitignore`) :
   - Répertoire : `.dev-auth-fetcher/credentials/` (à la racine du répertoire depuis lequel vous lancez la CLI).
   - Fichier : `<userId>.json` (par défaut `userId` = nom d'utilisateur système ; peut être surchargé avec la variable d'environnement `DEV_AUTH_USER`).
-  - Contenu : profils par environnement (login, mot de passe, rôle optionnel) et dernière connexion (env, login, apps) pour `reconnect-last`.
+  - Contenu : profils par environnement (login, mot de passe, rôle optionnel) et **historique des dernières connexions** (jusqu'à 3 : env, login, apps, horodatage et expiration estimée) pour les reconnexions rapides et `reconnect-last`.
 
 ## Scripts
 

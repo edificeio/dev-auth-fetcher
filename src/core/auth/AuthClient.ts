@@ -10,6 +10,8 @@ export interface AuthCredentials {
 export interface AuthCookies {
   xsrfToken: string;
   sessionId: string;
+  /** ms epoch — expiration estimée de la session (Max-Age/Expires du cookie) ; absent si inconnu. */
+  expiresAt?: number;
 }
 
 export interface IAuthClient {
