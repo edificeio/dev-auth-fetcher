@@ -32,7 +32,12 @@ program
   .option('-l, --login <login>', "Login de l'utilisateur à utiliser")
   .option(
     '--watch',
-    'Garder la session fraîche : ré-authentifier et réinjecter avant expiration (Vite recharge la page à chaque refresh)'
+    'Garder la session vivante par des pings keep-alive (ré-auth + réinjection seulement si elle tombe)'
+  )
+  .option(
+    '--watch-interval <minutes>',
+    'Intervalle des pings keep-alive en minutes (défaut : 5)',
+    (v) => parseInt(v, 10)
   )
   .action(async (options) => {
     await runConnectCommand(options);

@@ -5,6 +5,9 @@ import type { IAuthClient, AuthCredentials, AuthCookies } from './AuthClient.js'
 /** Délai maximum (ms) d'attente d'une réponse du serveur de recette. */
 const DEFAULT_TIMEOUT_MS = 15_000;
 
+/** Endpoint d'auth léger : 200 si la session est vivante, redirection sinon. */
+const SESSION_PROBE_PATH = '/auth/oauth2/userinfo';
+
 export interface FetchAuthClientOptions {
   /** Délai maximum d'attente de la réponse, en millisecondes (défaut : 15 000). */
   timeoutMs?: number;
@@ -121,30 +124,48 @@ export class FetchAuthClient implements IAuthClient {
   }
 
   /**
-   * POST avec timeout. Convertit les échecs réseau / dépassement de délai en AuthError lisible.
+   * Indique si la session est vivante (GET sur l'endpoint d'auth, 200 = vivante).
+   * Sonder maintient aussi la session active côté serveur (timeout glissant).
+   * Lève une AuthError en cas d'échec réseau / dépassement de délai (≠ session morte).
    */
+  async isSessionAlive(envUrl: string, sessionId: string): Promise<boolean> {
+    const baseUrl = envUrl.replace(/\/$/, '');
+    const probeUrl = `${baseUrl}${SESSION_PROBE_PATH}`;
+    const response = await this.fetchWithTimeout(probeUrl, {
+      method: 'GET',
+      headers: { cookie: `oneSessionId=${sessionId}` },
+      redirect: 'manual',
+    });
+    return response.status === 200;
+  }
+
+  /** POST `x-www-form-urlencoded` vers l'endpoint de login. */
   private async post(loginUrl: string, body: string): Promise<Response> {
+    return this.fetchWithTimeout(loginUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      referrer: loginUrl,
+      redirect: 'manual',
+      body,
+    });
+  }
+
+  /**
+   * fetch avec timeout. Convertit les échecs réseau / dépassement de délai en AuthError lisible.
+   */
+  private async fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
-      return await fetch(loginUrl, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/x-www-form-urlencoded',
-        },
-        referrer: loginUrl,
-        redirect: 'manual',
-        body,
-        signal: controller.signal,
-      });
+      return await fetch(url, { ...init, signal: controller.signal });
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         throw new AuthError(
-          `Délai dépassé (${this.timeoutMs} ms) en contactant ${loginUrl}. Le serveur de recette est peut-être indisponible.`
+          `Délai dépassé (${this.timeoutMs} ms) en contactant ${url}. Le serveur de recette est peut-être indisponible.`
         );
       }
       throw new AuthError(
-        `Impossible de contacter ${loginUrl} : ${err instanceof Error ? err.message : String(err)}`
+        `Impossible de contacter ${url} : ${err instanceof Error ? err.message : String(err)}`
       );
     } finally {
       clearTimeout(timer);

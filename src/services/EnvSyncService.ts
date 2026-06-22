@@ -27,12 +27,14 @@ const RECONNECT_CHOICE = '__reconnect_last__';
 
 /** Au-delà de ce délai sans info d'expiration, une session est considérée comme probablement périmée. */
 const STALE_AFTER_MS = 8 * 60 * 60 * 1000;
-/** En mode watch, on rafraîchit ce délai avant l'expiration estimée. */
-const REFRESH_BUFFER_MS = 2 * 60 * 1000;
-/** Intervalle de rafraîchissement de repli quand l'expiration du cookie est inconnue. */
-const WATCH_FALLBACK_INTERVAL_MS = 30 * 60 * 1000;
-/** Délai minimum entre deux rafraîchissements (anti-boucle serrée). */
-const WATCH_MIN_DELAY_MS = 5000;
+/**
+ * Intervalle par défaut entre deux pings keep-alive en mode watch.
+ * Volontairement court : le timeout d'inactivité de la recette observé est ~5 min, donc on
+ * ping bien avant pour réarmer la session en cours de vie (et non à l'échéance).
+ */
+const KEEPALIVE_INTERVAL_MS = 2 * 60 * 1000;
+/** Intervalle minimum accepté (anti-boucle serrée). */
+const KEEPALIVE_MIN_INTERVAL_MS = 30 * 1000;
 
 export interface ConnectOptions {
   env?: string;
@@ -43,8 +45,10 @@ export interface ConnectOptions {
   login?: string;
   /** Si true, ne pas demander de confirmation (reconnect-last entièrement automatique). */
   skipConfirm?: boolean;
-  /** Si true, garder la session fraîche : ré-authentifier et réinjecter avant expiration. */
+  /** Si true, garder la session vivante par des pings keep-alive (ré-auth seulement si elle tombe). */
   watch?: boolean;
+  /** Intervalle des pings keep-alive en minutes (défaut : 5). */
+  watchInterval?: number;
 }
 
 /** Décrit la sélection d'apps d'une connexion (pour l'affichage). */
@@ -173,7 +177,11 @@ export class EnvSyncService {
     }
 
     if (options.watch) {
-      await this.runWatch(env, apps, creds, allSelected, cookies);
+      const intervalMs = Math.max(
+        KEEPALIVE_MIN_INTERVAL_MS,
+        options.watchInterval ? options.watchInterval * 60 * 1000 : KEEPALIVE_INTERVAL_MS
+      );
+      await this.runWatch(env, apps, creds, allSelected, cookies, intervalMs);
     }
   }
 
@@ -216,27 +224,23 @@ export class EnvSyncService {
     return cookies;
   }
 
-  /** Délai avant le prochain rafraîchissement watch. */
-  private computeRefreshDelay(expiresAt?: number): number {
-    if (typeof expiresAt === 'number') {
-      return Math.max(WATCH_MIN_DELAY_MS, expiresAt - Date.now() - REFRESH_BUFFER_MS);
-    }
-    return WATCH_FALLBACK_INTERVAL_MS;
-  }
-
   /**
-   * Boucle de rafraîchissement (premier plan) : ré-authentifie et réinjecte avant expiration,
-   * jusqu'à Ctrl+C ou échec. Chaque réinjection redémarre le dev-server Vite (reload de la page).
+   * Boucle keep-alive (premier plan) : ping régulier de la session pour la maintenir active
+   * (timeout d'inactivité glissant). Tant que la session répond, on ne touche à rien — donc
+   * aucun reload Vite. Si elle tombe, on ré-authentifie + réinjecte (seul moment où le .env
+   * change). S'arrête sur Ctrl+C ou échec de ré-authentification.
    */
   private async runWatch(
     env: EnvironmentConfig,
     apps: AppSummary[],
     creds: ResolvedCredentials,
     allSelected: boolean,
-    initial: AuthCookies
+    initial: AuthCookies,
+    intervalMs: number
   ): Promise<void> {
     logger.warn(
-      'Mode --watch actif : chaque rafraîchissement réécrit les .env → Vite redémarre et recharge la page (perte du HMR). Ctrl+C pour arrêter.'
+      `Mode --watch (keep-alive) actif : ping toutes les ${formatDuration(intervalMs)} pour maintenir la session. ` +
+        'Réinjection du .env (et reload Vite) uniquement si la session tombe. Ctrl+C pour arrêter.'
     );
 
     const controller = new AbortController();
@@ -245,18 +249,30 @@ export class EnvSyncService {
     let cookies = initial;
     try {
       while (!controller.signal.aborted) {
-        const delay = this.computeRefreshDelay(cookies.expiresAt);
-        logger.info(
-          `Prochain rafraîchissement dans ${formatDuration(delay)} (Ctrl+C pour arrêter).`
-        );
-        if ((await sleep(delay, controller.signal)) === 'aborted') break;
+        if ((await sleep(intervalMs, controller.signal)) === 'aborted') break;
 
-        const spinner = ora('Rafraîchissement de la session…').start();
+        let alive: boolean;
+        try {
+          alive = await this.authClient.isSessionAlive(env.url, cookies.sessionId);
+        } catch (err) {
+          logger.warn(
+            `Vérification de session impossible (${err instanceof Error ? err.message : String(err)}) — nouvel essai au prochain ping.`
+          );
+          continue;
+        }
+
+        if (alive) {
+          logger.info('Session maintenue active.');
+          continue;
+        }
+
+        logger.warn('Session expirée — ré-authentification…');
+        const spinner = ora('Ré-authentification…').start();
         try {
           cookies = await this.authenticateAndInject(env, apps, creds, allSelected);
-          spinner.succeed(`Session rafraîchie — ${apps.length} fichier(s) .env mis à jour.`);
+          spinner.succeed(`Session rétablie — ${apps.length} fichier(s) .env mis à jour.`);
         } catch (err) {
-          spinner.fail('Échec du rafraîchissement — arrêt du mode --watch.');
+          spinner.fail('Échec de la ré-authentification — arrêt du mode --watch.');
           logger.error(err instanceof Error ? err.message : String(err));
           break;
         }

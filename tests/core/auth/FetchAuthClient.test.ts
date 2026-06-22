@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 
-import { parseCookieExpiry } from '../../../src/core/auth/FetchAuthClient.js';
+import { FetchAuthClient, parseCookieExpiry } from '../../../src/core/auth/FetchAuthClient.js';
 
 describe('parseCookieExpiry', () => {
   const NOW = 1_700_000_000_000;
@@ -22,5 +22,29 @@ describe('parseCookieExpiry', () => {
 
   it('retourne undefined sans attribut exploitable', () => {
     expect(parseCookieExpiry('oneSessionId=abc; Path=/; HttpOnly', NOW)).toBeUndefined();
+  });
+});
+
+describe('FetchAuthClient.isSessionAlive', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('200 → session vivante', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 200 }));
+    expect(await new FetchAuthClient().isSessionAlive('https://x.example.com/', 'sid')).toBe(true);
+  });
+
+  it('statut non-200 → session morte', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 401 }));
+    expect(await new FetchAuthClient().isSessionAlive('https://x.example.com/', 'sid')).toBe(false);
+  });
+
+  it("sonde l'endpoint userinfo avec le seul cookie oneSessionId", async () => {
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 200 }));
+    await new FetchAuthClient().isSessionAlive('https://x.example.com/', 'abc');
+    const [url, init] = spy.mock.calls[0];
+    expect(String(url)).toBe('https://x.example.com/auth/oauth2/userinfo');
+    expect((init?.headers as Record<string, string>).cookie).toBe('oneSessionId=abc');
   });
 });

@@ -16,4 +16,9 @@ export interface AuthCookies {
 
 export interface IAuthClient {
   loginAndGetCookies(envUrl: string, credentials: AuthCredentials): Promise<AuthCookies>;
+  /**
+   * Indique si une session est encore vivante. Sonder l'endpoint maintient aussi
+   * la session active (timeout d'inactivité glissant côté serveur).
+   */
+  isSessionAlive(envUrl: string, sessionId: string): Promise<boolean>;
 }

@@ -60,7 +60,8 @@ Options de la commande `connect` :
 - `-a, --app <name>` : nom ou id d'application (ex. `mon-app` ou `entcore/mediacentre` pour une app sous entcore)
 - `--all` : cibler toutes les applications détectées
 - `-l, --login <login>` : login utilisateur (sinon demandé en interactif)
-- `--watch` : garder la session fraîche (voir [Mode watch](#mode-watch--watch))
+- `--watch` : maintenir la session vivante par keep-alive (voir [Mode watch](#mode-watch--watch))
+- `--watch-interval <minutes>` : intervalle des pings keep-alive (défaut 2)
 
 Lors du premier `connect` pour un environnement, vous saisissez **login**, **mot de passe** et éventuellement un **rôle** (ex. Enseignant, Élève) pour identifier le compte. Après une connexion réussie, ces informations sont enregistrées. Aux connexions suivantes pour le même environnement, vous pouvez choisir un identifiant déjà enregistré (affiché avec le rôle entre parenthèses) ou « Nouvel identifiant ». Les identifiants sont **triés en faisant remonter les derniers utilisés**. Les credentials sont stockés par environnement et par utilisateur dans un fichier **non versionné** (voir [Structure des fichiers](#structure-des-fichiers)).
 
@@ -88,15 +89,19 @@ dev-auth-fetcher reconnect-last
 
 ### Mode watch (`--watch`)
 
-Les cookies de session expirent au bout d'un certain temps : votre front local se met alors à recevoir des 401. Le mode `--watch` garde la session fraîche en **ré-authentifiant et réinjectant les `.env` automatiquement avant l'expiration**, tant que le process tourne (premier plan, `Ctrl+C` pour arrêter).
+Les sessions de recette expirent après une période d'inactivité : votre front local se met alors à recevoir des 401. Le mode `--watch` **maintient la session vivante** par un **ping keep-alive régulier** (premier plan, `Ctrl+C` pour arrêter) :
 
 ```bash
 dev-auth-fetcher connect -e recette-ode1 -a mon-app --watch
+dev-auth-fetcher connect -e recette-ode1 -a mon-app --watch --watch-interval 3   # ping toutes les 3 min
 ```
 
-Le délai de rafraîchissement est calculé à partir de l'expiration estimée du cookie de session (attribut `Max-Age`/`Expires`), avec un repli sur un intervalle fixe si cette info est absente.
+À chaque intervalle (défaut **2 min**, réglable via `--watch-interval <minutes>`), l'outil sonde la session. L'intervalle doit rester **inférieur au timeout d'inactivité du serveur** (observé ≈ 5 min sur les recettes) pour que le ping réarme la session avant son expiration :
 
-> ⚠️ **À savoir** : chaque rafraîchissement réécrit le `.env`. Vite **surveille les `.env`** et **redémarre le dev-server** quand ils changent, ce qui provoque un **rechargement complet de la page** (perte de l'état HMR). Le mode watch est donc surtout utile pour de longues sessions ; pour un coup ponctuel, préférez `reconnect-last`.
+- **session vivante** → rien n'est touché. Le ping lui-même réarme le timeout d'inactivité côté serveur, donc la session reste active **sans réécrire le `.env`** et **sans reload Vite**.
+- **session tombée** → l'outil **ré-authentifie et réinjecte** les `.env`. C'est le **seul** moment où le `.env` change.
+
+> ⚠️ **À savoir** : quand le `.env` est réécrit (uniquement à la ré-authentification), Vite **surveille les `.env`**, **redémarre le dev-server** et **recharge la page** (perte de l'état HMR). En keep-alive nominal, ça n'arrive pas — le reload n'a lieu que si la session a réellement expiré.
 
 ### Lister les applications
 

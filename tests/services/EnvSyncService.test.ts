@@ -28,6 +28,10 @@ class FakeAuthClient implements IAuthClient {
     if (this.result instanceof Error) throw this.result;
     return this.result;
   }
+
+  async isSessionAlive(): Promise<boolean> {
+    return true;
+  }
 }
 
 describe.sequential('EnvSyncService.runInteractive', () => {
