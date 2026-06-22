@@ -26,11 +26,13 @@ describe.sequential('credentialsStore', () => {
     originalCwd = process.cwd();
     process.chdir(tempDir);
     process.env.DEV_AUTH_USER = 'test-user';
+    process.env.DEV_AUTH_FETCHER_HOME = join(tempDir, 'home');
   });
 
   afterEach(async () => {
     process.chdir(originalCwd);
     delete process.env.DEV_AUTH_USER;
+    delete process.env.DEV_AUTH_FETCHER_HOME;
     await rm(tempDir, { recursive: true, force: true });
   });
 

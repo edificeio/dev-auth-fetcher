@@ -2,10 +2,9 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 
-import type { UserProfile } from './config.types.js';
+import { getCredentialsDir, getLegacyCredentialsDir } from '../utils/paths.js';
 
-const CREDENTIALS_DIR = '.dev-auth-fetcher';
-const CREDENTIALS_SUBDIR = 'credentials';
+import type { UserProfile } from './config.types.js';
 
 export interface LastConnection {
   envId: string;
@@ -49,10 +48,15 @@ export function getUserId(): string {
 }
 
 /**
- * Chemin du fichier de credentials pour l'utilisateur courant (relatif à process.cwd()).
+ * Chemin du fichier de credentials pour l'utilisateur courant (~/.dev-auth-fetcher/credentials).
  */
 export function getUserCredentialsPath(): string {
-  return path.join(process.cwd(), CREDENTIALS_DIR, CREDENTIALS_SUBDIR, getUserId() + '.json');
+  return path.join(getCredentialsDir(), getUserId() + '.json');
+}
+
+/** Ancien chemin du fichier de credentials (relatif au cwd), pour migration unique. */
+function getLegacyUserCredentialsPath(): string {
+  return path.join(getLegacyCredentialsDir(), getUserId() + '.json');
 }
 
 /**
@@ -69,11 +73,8 @@ function migrateRecentConnections(data: UserCredentialsStore): RecentConnection[
   return [];
 }
 
-/**
- * Charge le store des credentials de l'utilisateur. Retourne un store vide si le fichier n'existe pas.
- */
-export async function loadUserCredentialsStore(): Promise<UserCredentialsStore> {
-  const filePath = getUserCredentialsPath();
+/** Lit et normalise un fichier store ; null si absent. */
+async function readStoreFile(filePath: string): Promise<UserCredentialsStore | null> {
   try {
     const content = await fs.readFile(filePath, 'utf-8');
     const data = JSON.parse(content) as UserCredentialsStore;
@@ -82,12 +83,25 @@ export async function loadUserCredentialsStore(): Promise<UserCredentialsStore> 
       recentConnections: migrateRecentConnections(data),
     };
   } catch (err) {
-    const nodeErr = err as NodeJS.ErrnoException;
-    if (nodeErr.code === 'ENOENT') {
-      return { ...DEFAULT_STORE };
-    }
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
     throw err;
   }
+}
+
+/**
+ * Charge le store des credentials de l'utilisateur. Retourne un store vide s'il n'existe pas.
+ * Migre une fois l'ancien fichier (relatif au cwd) vers le dossier de données utilisateur.
+ */
+export async function loadUserCredentialsStore(): Promise<UserCredentialsStore> {
+  const current = await readStoreFile(getUserCredentialsPath());
+  if (current) return current;
+
+  const legacy = await readStoreFile(getLegacyUserCredentialsPath());
+  if (legacy) {
+    await saveUserCredentialsStore(legacy);
+    return legacy;
+  }
+  return { ...DEFAULT_STORE };
 }
 
 /**

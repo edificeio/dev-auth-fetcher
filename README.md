@@ -113,22 +113,25 @@ dev-auth-fetcher list-apps
 
 ## Structure des fichiers
 
-- **Configuration globale** : `config/app.config.json`  
-  - `appsRoot` : chemin racine des applications  
-  - `defaultEnvironment` : environnement par défaut  
+Les données **non versionnées** (propres à chaque dev) sont centralisées dans **un seul dossier**, hors du repo : `~/.dev-auth-fetcher/` (surchargeable via la variable d'environnement `DEV_AUTH_FETCHER_HOME`).
 
-- **Environnements** : un fichier par environnement dans `config/environments/`  
+- **Configuration utilisateur** : `~/.dev-auth-fetcher/config.json`
+  - `appsRoot` : chemin racine des applications
+  - `defaultEnvironment` : environnement par défaut
+
+- **Identifiants enregistrés** : `~/.dev-auth-fetcher/credentials/<userId>.json`
+  - `userId` = nom d'utilisateur système par défaut ; surchargeable via `DEV_AUTH_USER`.
+  - Contenu : profils par environnement (login, mot de passe, rôle optionnel) et **historique des dernières connexions** (jusqu'à 3 : env, login, apps, horodatage et expiration estimée) pour les reconnexions rapides et `reconnect-last`.
+
+  > Migration automatique : si d'anciens fichiers existent (`config/app.config.json` et `./.dev-auth-fetcher/credentials/` à la racine du repo), ils sont repris une fois vers `~/.dev-auth-fetcher/` au premier lancement.
+
+- **Environnements** (versionnés, partagés par l'équipe) : un fichier par environnement dans `config/environments/` du repo
   - Ex. `recette-ode1.json` : `{ "id", "label", "url" }`
 
 - **Fichier .env cible** (dans chaque `application/frontend/.env` ou `entcore/application/frontend/.env`) :
   - `VITE_XSRF_TOKEN=...`
   - `VITE_ONE_SESSION_ID=...`
   - `VITE_RECETTE=<url>`
-
-- **Identifiants enregistrés** (par utilisateur, **non versionnés**, répertoire dans `.gitignore`) :
-  - Répertoire : `.dev-auth-fetcher/credentials/` (à la racine du répertoire depuis lequel vous lancez la CLI).
-  - Fichier : `<userId>.json` (par défaut `userId` = nom d'utilisateur système ; peut être surchargé avec la variable d'environnement `DEV_AUTH_USER`).
-  - Contenu : profils par environnement (login, mot de passe, rôle optionnel) et **historique des dernières connexions** (jusqu'à 3 : env, login, apps, horodatage et expiration estimée) pour les reconnexions rapides et `reconnect-last`.
 
 ## Scripts
 

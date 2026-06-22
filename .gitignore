@@ -142,3 +142,5 @@ vite.config.ts.timestamp-*
 
 # CLI credentials (per-user, not versioned)
 .dev-auth-fetcher/
+# Ancien fichier de config local (désormais dans ~/.dev-auth-fetcher/config.json)
+config/app.config.json

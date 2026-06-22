@@ -49,14 +49,17 @@ describe.sequential('EnvSyncService.runInteractive', () => {
     originalCwd = process.cwd();
     process.chdir(tempDir);
     process.env.DEV_AUTH_USER = 'test-user';
+    // données utilisateur (config + credentials) centralisées dans ce dossier
+    process.env.DEV_AUTH_FETCHER_HOME = join(tempDir, 'home');
 
-    // config/app.config.json + config/environments/<env>.json
-    await mkdir(join(tempDir, 'config', 'environments'), { recursive: true });
+    // config utilisateur (HOME) + environnements versionnés (dans le repo / cwd)
     appsRoot = join(tempDir, 'apps');
+    await mkdir(join(tempDir, 'home'), { recursive: true });
     await writeFile(
-      join(tempDir, 'config', 'app.config.json'),
+      join(tempDir, 'home', 'config.json'),
       JSON.stringify({ appsRoot, defaultEnvironment: ENV_ID }, null, 2)
     );
+    await mkdir(join(tempDir, 'config', 'environments'), { recursive: true });
     await writeFile(
       join(tempDir, 'config', 'environments', `${ENV_ID}.json`),
       JSON.stringify({ id: ENV_ID, label: 'Recette Test', url: ENV_URL }, null, 2)
@@ -77,6 +80,7 @@ describe.sequential('EnvSyncService.runInteractive', () => {
   afterEach(async () => {
     process.chdir(originalCwd);
     delete process.env.DEV_AUTH_USER;
+    delete process.env.DEV_AUTH_FETCHER_HOME;
     await rm(tempDir, { recursive: true, force: true });
   });
 

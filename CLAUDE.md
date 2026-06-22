@@ -43,15 +43,15 @@ Flux en couches, du plus haut au plus bas niveau :
   - `auth/` — `IAuthClient` + `FetchAuthClient` : POST `x-www-form-urlencoded` sur `<envUrl>/auth/login` avec `redirect: 'manual'` et timeout (`AbortController`), parse les `Set-Cookie`. Valide `authenticated=true` puis extrait `XSRF-TOKEN` (URL-décodé) et `oneSessionId`. Injecté dans `EnvSyncService` (constructeur) → service testable sans réseau.
   - `env/EnvManager` — applique le patch de cookies aux `.env`, **en préservant les variables existantes**.
   - `apps/AppDiscovery` — scanne `appsRoot` ; détecte **4 schémas** : `<app>/frontend`, `<app>/` directe (`.env` + `package.json` sans sous-dossier `frontend`), `entcore/<app>/frontend`, et `entcore/<app>/src/main/ts` (id = `entcore/<app>`).
-- **`src/config/`** — `appConfig` (`config/app.config.json` : `appsRoot`, `defaultEnvironment`), `envConfigs` (un fichier par env dans `config/environments/`), `credentialsStore` (profils et dernière connexion, **par utilisateur**), `config.types.ts` (types + `VITE_ENV_KEYS`).
+- **`src/config/`** — `appConfig` (`~/.dev-auth-fetcher/config.json` : `appsRoot`, `defaultEnvironment`), `envConfigs` (un fichier par env dans `config/environments/`, versionné), `credentialsStore` (profils + historique des connexions récentes, **par utilisateur**, dans `~/.dev-auth-fetcher/credentials/`), `config.types.ts` (types + `VITE_ENV_KEYS`).
 - **`src/utils/`** — `envFile` (parse/merge/write `.env`), `paths` (helpers cross-platform), `logger`, classes d'erreurs (`errors.ts`).
 
 ## Conventions & points de vigilance
 
 - **Cross-platform** (macOS / Linux / Windows) : toujours passer par `path.join`/`path.resolve` (helpers dans `utils/paths.ts`), jamais de `/` concaténé en dur.
-- **Secrets non versionnés** : les credentials et la dernière connexion vivent dans `.dev-auth-fetcher/credentials/<user>.json` (gitignoré). L'utilisateur courant vient de `os.userInfo().username`, surchargeable via la variable d'env `DEV_AUTH_USER`. Ne jamais committer ce dossier ni logger de mot de passe.
+- **Données utilisateur centralisées hors du repo** : config + credentials vivent dans `~/.dev-auth-fetcher/` (`config.json` + `credentials/<user>.json`), surchargeable via `DEV_AUTH_FETCHER_HOME` (`getUserDataDir` dans `utils/paths.ts`). `<user>` = `DEV_AUTH_USER` ?? `os.userInfo().username`. `loadAppConfig`/`loadUserCredentialsStore` migrent une fois les anciens emplacements relatifs au cwd (`config/app.config.json`, `./.dev-auth-fetcher/`). Ne jamais logger de mot de passe.
 - **Préserver les `.env` cibles** : `updateAppEnv` re-merge l'existant ; seules les clés `VITE_*` (cf. `VITE_ENV_KEYS`) sont écrasées, avec des commentaires d'en-tête (login + date).
 - **Erreurs typées** : lever les classes de `utils/errors.ts` (`AuthError`, `AppConfigError`, `EnvFileError`, `AppDiscoveryError`) plutôt que des `Error` nus.
 - **Imports** : règle eslint `import/order` (groupes triés, `newlines-between: always`). Prettier : `singleQuote: true`, `semi: true`, `printWidth: 100`.
 - **Tests** dans `tests/`, miroir de `src/`, alias `@` → `src` (cf. `vitest.config.ts`). `tsconfig` exclut `tests` du build.
-- **Chemins de config relatifs à `process.cwd()`** : la CLI lit `config/` et `.dev-auth-fetcher/` depuis le répertoire de lancement (en pratique, la racine du repo).
+- **Deux familles de stockage** : les **environnements** (`config/environments/`, versionnés, partagés) sont lus relativement au `process.cwd()` (racine du repo) ; les **données utilisateur** (config + credentials) sont dans `~/.dev-auth-fetcher/` (cf. ci-dessus), indépendantes du répertoire de lancement.

@@ -2,7 +2,12 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 
 import { AppConfigError } from '../utils/errors.js';
-import { getAppConfigPath, getConfigDir, getEnvironmentsConfigDir } from '../utils/paths.js';
+import {
+  getAppConfigPath,
+  getEnvironmentsConfigDir,
+  getLegacyAppConfigPath,
+  getUserDataDir,
+} from '../utils/paths.js';
 
 import type { AppConfig } from './config.types.js';
 
@@ -11,40 +16,47 @@ const DEFAULT_APP_CONFIG: AppConfig = {
   defaultEnvironment: 'recette-ode1',
 };
 
-/**
- * Charge le fichier app.config.json. Retourne null si absent.
- */
-export async function loadAppConfig(): Promise<AppConfig | null> {
-  const configPath = getAppConfigPath();
+/** Parse et valide un fichier de config ; lève sur JSON/appsRoot invalide, null si absent. */
+async function readConfigFile(filePath: string): Promise<AppConfig | null> {
   try {
-    const content = await fs.readFile(configPath, 'utf-8');
+    const content = await fs.readFile(filePath, 'utf-8');
     const data = JSON.parse(content) as AppConfig;
     if (!data.appsRoot || typeof data.appsRoot !== 'string') {
-      throw new AppConfigError('appsRoot manquant ou invalide dans app.config.json');
+      throw new AppConfigError('appsRoot manquant ou invalide dans la config');
     }
-    return {
-      ...DEFAULT_APP_CONFIG,
-      ...data,
-    };
+    return { ...DEFAULT_APP_CONFIG, ...data };
   } catch (err) {
     const nodeErr = err as NodeJS.ErrnoException;
-    if (nodeErr.code === 'ENOENT') {
-      return null;
-    }
+    if (nodeErr.code === 'ENOENT') return null;
+    if (err instanceof AppConfigError) throw err;
     throw new AppConfigError(
-      `Impossible de charger app.config.json: ${nodeErr instanceof Error ? nodeErr.message : String(err)}`
+      `Impossible de charger la config: ${err instanceof Error ? err.message : String(err)}`
     );
   }
 }
 
 /**
- * Sauvegarde la configuration globale.
+ * Charge la config utilisateur (~/.dev-auth-fetcher/config.json). Retourne null si absente.
+ * Migre une fois l'ancien fichier versionné (config/app.config.json) s'il existe encore.
+ */
+export async function loadAppConfig(): Promise<AppConfig | null> {
+  const current = await readConfigFile(getAppConfigPath());
+  if (current) return current;
+
+  const legacy = await readConfigFile(getLegacyAppConfigPath());
+  if (legacy) {
+    await saveAppConfig(legacy);
+    return legacy;
+  }
+  return null;
+}
+
+/**
+ * Sauvegarde la configuration globale dans le dossier de données utilisateur.
  */
 export async function saveAppConfig(config: AppConfig): Promise<void> {
-  const configPath = getAppConfigPath();
-  const dir = getConfigDir();
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
+  await fs.mkdir(getUserDataDir(), { recursive: true });
+  await fs.writeFile(getAppConfigPath(), JSON.stringify(config, null, 2), 'utf-8');
 }
 
 /**
@@ -87,8 +99,7 @@ export async function setDefaultEnvironmentId(envId: string): Promise<void> {
 export async function ensureAppConfigExists(): Promise<AppConfig> {
   const config = await loadAppConfig();
   if (config) return config;
-  const dir = getConfigDir();
-  await fs.mkdir(dir, { recursive: true });
+  await fs.mkdir(getUserDataDir(), { recursive: true });
   await fs.mkdir(getEnvironmentsConfigDir(), { recursive: true });
   const newConfig: AppConfig = { ...DEFAULT_APP_CONFIG, appsRoot: process.cwd() };
   await saveAppConfig(newConfig);
