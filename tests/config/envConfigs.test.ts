@@ -4,7 +4,7 @@ import {
   listEnvironments,
   getEnvironmentById,
   DEFAULT_ENVIRONMENTS,
-} from '../../src/config/envConfigs';
+} from '../../src/config/envConfigs.js';
 
 describe('envConfigs', () => {
   it('DEFAULT_ENVIRONMENTS contient les 6 environnements attendus', () => {

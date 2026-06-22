@@ -9,7 +9,6 @@ import type { AppConfig } from './config.types.js';
 const DEFAULT_APP_CONFIG: AppConfig = {
   appsRoot: '',
   defaultEnvironment: 'recette-ode1',
-  profiles: [],
 };
 
 /**

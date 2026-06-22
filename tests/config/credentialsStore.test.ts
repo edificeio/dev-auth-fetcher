@@ -12,7 +12,7 @@ import {
   getLastConnection,
   setLastConnection,
   type UserCredentialsStore,
-} from '../../src/config/credentialsStore';
+} from '../../src/config/credentialsStore.js';
 
 describe.sequential('credentialsStore', () => {
   let tempDir: string;

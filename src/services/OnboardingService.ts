@@ -4,9 +4,7 @@ import { askRootDirectoryStep } from '../steps/onboarding/AskRootDirectoryStep.j
 import { generateEnvConfigsStep } from '../steps/onboarding/GenerateEnvConfigsStep.js';
 import { saveAppConfigStep } from '../steps/onboarding/SaveAppConfigStep.js';
 import { selectEnvironmentStep } from '../steps/onboarding/SelectEnvironmentStep.js';
-import { createLogger } from '../utils/logger.js';
-
-const logger = createLogger();
+import { logger } from '../utils/logger.js';
 
 /**
  * Orchestration du parcours d'onboarding : root des apps, génération des configs d'environnements, sauvegarde.
@@ -29,7 +27,6 @@ export class OnboardingService {
     const config: AppConfig = (await loadAppConfig()) ?? {
       appsRoot,
       defaultEnvironment: 'recette-ode1',
-      profiles: [],
     };
     await saveAppConfigStep(config);
     logger.success('Configuration enregistrée dans config/app.config.json');

@@ -1,8 +1,6 @@
 import { loadAppConfig } from '../../config/appConfig.js';
 import { discoverApps } from '../../core/apps/AppDiscovery.js';
-import { createLogger } from '../../utils/logger.js';
-
-const logger = createLogger();
+import { logger } from '../../utils/logger.js';
 
 export async function runListAppsCommand(): Promise<void> {
   const config = await loadAppConfig();

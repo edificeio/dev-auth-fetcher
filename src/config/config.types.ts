@@ -5,8 +5,6 @@
 export interface AppConfig {
   appsRoot: string;
   defaultEnvironment: string;
-  lastUsedProfile?: string;
-  profiles?: UserProfile[];
 }
 
 export interface UserProfile {

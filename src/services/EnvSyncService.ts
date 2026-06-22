@@ -15,9 +15,7 @@ import { FetchAuthClient } from '../core/auth/FetchAuthClient.js';
 import { updateAppsEnv } from '../core/env/EnvManager.js';
 import { confirmAndRunStep } from '../steps/connect/ConfirmAndRunStep.js';
 import { selectAppsStep } from '../steps/connect/SelectAppsStep.js';
-import { createLogger } from '../utils/logger.js';
-
-const logger = createLogger();
+import { logger } from '../utils/logger.js';
 
 const CHOICE_NEW_CREDENTIALS = '__new__';
 

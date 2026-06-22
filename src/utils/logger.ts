@@ -23,3 +23,6 @@ export function createLogger(): Logger {
     },
   };
 }
+
+/** Logger partagé de la CLI. */
+export const logger: Logger = createLogger();

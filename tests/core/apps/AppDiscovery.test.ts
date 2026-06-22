@@ -4,8 +4,8 @@ import { join } from 'path';
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
-import { discoverApps } from '../../../src/core/apps/AppDiscovery';
-import { AppDiscoveryError } from '../../../src/utils/errors';
+import { discoverApps } from '../../../src/core/apps/AppDiscovery.js';
+import { AppDiscoveryError } from '../../../src/utils/errors.js';
 
 describe('AppDiscovery', () => {
   let tempRoot: string;

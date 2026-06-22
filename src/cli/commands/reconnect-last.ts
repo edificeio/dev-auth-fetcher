@@ -1,8 +1,6 @@
 import { getLastConnection } from '../../config/credentialsStore.js';
 import { EnvSyncService } from '../../services/EnvSyncService.js';
-import { createLogger } from '../../utils/logger.js';
-
-const logger = createLogger();
+import { logger } from '../../utils/logger.js';
 
 export async function runReconnectLastCommand(): Promise<void> {
   const last = await getLastConnection();

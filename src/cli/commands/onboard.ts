@@ -1,7 +1,5 @@
 import { OnboardingService } from '../../services/OnboardingService.js';
-import { createLogger } from '../../utils/logger.js';
-
-const logger = createLogger();
+import { logger } from '../../utils/logger.js';
 
 export async function runOnboardCommand(): Promise<void> {
   logger.info('🔧 Onboarding du projet CLI…');
