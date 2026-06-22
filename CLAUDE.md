@@ -20,11 +20,15 @@ pnpm install
 pnpm run dev <command>     # exécute via tsx sans build (ex: pnpm run dev connect)
 pnpm run build             # bundle ESM dans dist/ via tsup
 pnpm start                 # node dist/index.js (après build)
-pnpm test                  # vitest (watch). Un seul fichier : pnpm test tests/utils/envFile.test.ts
+pnpm run typecheck         # tsc --noEmit sur src + tests (tsconfig.typecheck.json)
+pnpm test                  # vitest run (une passe). Un seul fichier : pnpm test tests/utils/envFile.test.ts
+pnpm run test:watch        # vitest en mode watch
 pnpm run lint              # eslint sur src/ et tests/
 pnpm run format            # prettier --write
 pnpm run format:check
 ```
+
+> Le build (tsup) type via `tsconfig.json` (src uniquement). `pnpm run typecheck` couvre **aussi** `tests/` via `tsconfig.typecheck.json` — c'est là que les erreurs de type des tests sont détectées (CI : typecheck → lint → format:check → test).
 
 Le binaire (`bin/dev-auth-fetcher`) charge `dist/index.js` : il faut **builder avant** de lancer via `node bin/...`. Commandes CLI : `onboard`, `connect`, `list-apps`, `reconnect-last` (voir README pour les options).
 
@@ -36,9 +40,9 @@ Flux en couches, du plus haut au plus bas niveau :
 - **`src/services/`** — orchestrateurs. `EnvSyncService` pilote `connect` (choix env → apps → identifiant → auth → écriture .env) ; `OnboardingService` pilote `onboard`.
 - **`src/steps/`** — étapes interactives réutilisables (prompts inquirer), regroupées par parcours (`connect/`, `onboarding/`). Les services composent ces steps.
 - **`src/core/`** — logique métier sans I/O interactif :
-  - `auth/` — `IAuthClient` + `FetchAuthClient` : POST `x-www-form-urlencoded` sur `<envUrl>/auth/login` avec `redirect: 'manual'`, parse les `Set-Cookie`. Valide `authenticated=true` puis extrait `XSRF-TOKEN` (URL-décodé) et `oneSessionId`.
+  - `auth/` — `IAuthClient` + `FetchAuthClient` : POST `x-www-form-urlencoded` sur `<envUrl>/auth/login` avec `redirect: 'manual'` et timeout (`AbortController`), parse les `Set-Cookie`. Valide `authenticated=true` puis extrait `XSRF-TOKEN` (URL-décodé) et `oneSessionId`. Injecté dans `EnvSyncService` (constructeur) → service testable sans réseau.
   - `env/EnvManager` — applique le patch de cookies aux `.env`, **en préservant les variables existantes**.
-  - `apps/AppDiscovery` — scanne `appsRoot` ; détecte deux schémas : `<app>/frontend` à la racine, et `entcore/<app>/frontend` (id = `entcore/<app>`).
+  - `apps/AppDiscovery` — scanne `appsRoot` ; détecte **4 schémas** : `<app>/frontend`, `<app>/` directe (`.env` + `package.json` sans sous-dossier `frontend`), `entcore/<app>/frontend`, et `entcore/<app>/src/main/ts` (id = `entcore/<app>`).
 - **`src/config/`** — `appConfig` (`config/app.config.json` : `appsRoot`, `defaultEnvironment`), `envConfigs` (un fichier par env dans `config/environments/`), `credentialsStore` (profils et dernière connexion, **par utilisateur**), `config.types.ts` (types + `VITE_ENV_KEYS`).
 - **`src/utils/`** — `envFile` (parse/merge/write `.env`), `paths` (helpers cross-platform), `logger`, classes d'erreurs (`errors.ts`).
 
