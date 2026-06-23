@@ -1,0 +1,164 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
+
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+
+import {
+  getRecentConnections,
+  saveUserCredentialsStore,
+} from '../../src/config/credentialsStore.js';
+import type { AuthCredentials, AuthCookies, IAuthClient } from '../../src/core/auth/AuthClient.js';
+import {
+  EnvSyncService,
+  describeFreshness,
+  isSessionStale,
+} from '../../src/services/EnvSyncService.js';
+import { readEnvFile } from '../../src/utils/envFile.js';
+import { AuthError } from '../../src/utils/errors.js';
+
+/** Faux client d'auth : enregistre les arguments reçus et renvoie des cookies fixes. */
+class FakeAuthClient implements IAuthClient {
+  calls: Array<{ envUrl: string; credentials: AuthCredentials }> = [];
+
+  constructor(private readonly result: AuthCookies | Error) {}
+
+  async loginAndGetCookies(envUrl: string, credentials: AuthCredentials): Promise<AuthCookies> {
+    this.calls.push({ envUrl, credentials });
+    if (this.result instanceof Error) throw this.result;
+    return this.result;
+  }
+
+  async isSessionAlive(): Promise<boolean> {
+    return true;
+  }
+}
+
+describe.sequential('EnvSyncService.runInteractive', () => {
+  let tempDir: string;
+  let appsRoot: string;
+  let appEnvPath: string;
+  let originalCwd: string;
+
+  const ENV_ID = 'recette-test';
+  const ENV_URL = 'https://recette-test.example.com/';
+  const LOGIN = 'me';
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'env-sync-test-'));
+    originalCwd = process.cwd();
+    process.chdir(tempDir);
+    process.env.DEV_AUTH_USER = 'test-user';
+    // données utilisateur (config + credentials) centralisées dans ce dossier
+    process.env.DEV_AUTH_FETCHER_HOME = join(tempDir, 'home');
+
+    // toutes les données utilisateur (config + environnements + credentials) dans le HOME
+    appsRoot = join(tempDir, 'apps');
+    await mkdir(join(tempDir, 'home', 'environments'), { recursive: true });
+    await writeFile(
+      join(tempDir, 'home', 'config.json'),
+      JSON.stringify({ appsRoot, defaultEnvironment: ENV_ID }, null, 2)
+    );
+    await writeFile(
+      join(tempDir, 'home', 'environments', `${ENV_ID}.json`),
+      JSON.stringify({ id: ENV_ID, label: 'Recette Test', url: ENV_URL }, null, 2)
+    );
+
+    // une app détectable (apps/myapp/frontend) avec un .env existant à préserver
+    const frontendDir = join(appsRoot, 'myapp', 'frontend');
+    await mkdir(frontendDir, { recursive: true });
+    appEnvPath = join(frontendDir, '.env');
+    await writeFile(appEnvPath, 'EXISTING=keepme\n');
+
+    // profil enregistré pour éviter tout prompt de mot de passe
+    await saveUserCredentialsStore({
+      environmentProfiles: { [ENV_ID]: [{ login: LOGIN, password: 'secret', role: 'Enseignant' }] },
+    });
+  });
+
+  afterEach(async () => {
+    process.chdir(originalCwd);
+    delete process.env.DEV_AUTH_USER;
+    delete process.env.DEV_AUTH_FETCHER_HOME;
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it('authentifie et injecte les cookies dans le .env de l’app (sans prompt)', async () => {
+    const expiresAt = Date.now() + 3600 * 1000;
+    const client = new FakeAuthClient({ xsrfToken: 'xsrf-123', sessionId: 'sess-456', expiresAt });
+    const service = new EnvSyncService(client);
+
+    await service.runInteractive({ env: ENV_ID, login: LOGIN, apps: ['myapp'], skipConfirm: true });
+
+    // le client a été appelé avec l'URL et les credentials du profil enregistré
+    expect(client.calls).toHaveLength(1);
+    expect(client.calls[0].envUrl).toBe(ENV_URL);
+    expect(client.calls[0].credentials).toEqual({ login: LOGIN, password: 'secret' });
+
+    // le .env contient les clés VITE_* et préserve l'existant
+    const env = await readEnvFile(appEnvPath);
+    expect(env.VITE_XSRF_TOKEN).toBe('xsrf-123');
+    expect(env.VITE_ONE_SESSION_ID).toBe('sess-456');
+    expect(env.VITE_RECETTE).toBe(ENV_URL);
+    expect(env.EXISTING).toBe('keepme');
+
+    // la connexion est enregistrée dans l'historique avec l'expiration propagée
+    const recents = await getRecentConnections();
+    expect(recents[0]).toMatchObject({ envId: ENV_ID, login: LOGIN, appIds: ['myapp'], expiresAt });
+    expect(typeof recents[0].connectedAt).toBe('number');
+  });
+
+  it("ne touche pas au .env si l'authentification échoue", async () => {
+    const client = new FakeAuthClient(new AuthError('bad credentials'));
+    const service = new EnvSyncService(client);
+
+    await expect(
+      service.runInteractive({ env: ENV_ID, login: LOGIN, apps: ['myapp'], skipConfirm: true })
+    ).rejects.toThrow('bad credentials');
+
+    const env = await readEnvFile(appEnvPath);
+    expect(env).toEqual({ EXISTING: 'keepme' });
+  });
+
+  it('abandonne proprement sur un environnement inconnu', async () => {
+    const client = new FakeAuthClient({ xsrfToken: 'x', sessionId: 's' });
+    const service = new EnvSyncService(client);
+
+    await service.runInteractive({
+      env: 'does-not-exist',
+      login: LOGIN,
+      apps: ['myapp'],
+      skipConfirm: true,
+    });
+
+    expect(client.calls).toHaveLength(0);
+    const env = await readEnvFile(appEnvPath);
+    expect(env).toEqual({ EXISTING: 'keepme' });
+  });
+});
+
+describe('freshness helpers', () => {
+  const base = { envId: 'e', login: 'u' };
+
+  it('isSessionStale utilise expiresAt quand présent', () => {
+    const now = 1_000_000;
+    expect(isSessionStale({ ...base, connectedAt: now, expiresAt: now + 1000 }, now)).toBe(false);
+    expect(isSessionStale({ ...base, connectedAt: now, expiresAt: now - 1000 }, now)).toBe(true);
+  });
+
+  it('isSessionStale retombe sur un seuil de temps sans expiresAt', () => {
+    const now = 100 * 60 * 60 * 1000;
+    expect(isSessionStale({ ...base, connectedAt: now - 60 * 1000 }, now)).toBe(false);
+    expect(isSessionStale({ ...base, connectedAt: now - 9 * 60 * 60 * 1000 }, now)).toBe(true);
+  });
+
+  it('describeFreshness affiche l’âge et signale une session expirée', () => {
+    const now = 10_000_000;
+    const fresh = describeFreshness({ ...base, connectedAt: now - 3 * 60 * 1000 }, now);
+    expect(fresh).toContain('connecté il y a 3 min');
+    expect(fresh).not.toContain('⚠️');
+
+    const stale = describeFreshness({ ...base, connectedAt: now, expiresAt: now - 1 }, now);
+    expect(stale).toContain('⚠️');
+  });
+});

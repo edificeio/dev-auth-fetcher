@@ -2,10 +2,9 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 
-import type { UserProfile } from './config.types.js';
+import { getCredentialsDir, getLegacyCredentialsDir } from '../utils/paths.js';
 
-const CREDENTIALS_DIR = '.dev-auth-fetcher';
-const CREDENTIALS_SUBDIR = 'credentials';
+import type { UserProfile } from './config.types.js';
 
 export interface LastConnection {
   envId: string;
@@ -18,14 +17,27 @@ export interface LastConnection {
   appNames?: string[];
 }
 
+export interface RecentConnection extends LastConnection {
+  /** ms epoch — moment de la connexion. Sert aussi de clé de récence (tri des logins). */
+  connectedAt: number;
+  /** ms epoch — expiration estimée (Max-Age/Expires du cookie de session) ; absent si inconnu. */
+  expiresAt?: number;
+}
+
 export interface UserCredentialsStore {
   environmentProfiles: Record<string, UserProfile[]>;
+  /** plus-récent-d'abord, dédupliqué par signature, plafonné à RECENT_CONNECTIONS_CAP. */
+  recentConnections?: RecentConnection[];
+  /** legacy mono-entrée : lu pour migration uniquement, plus écrit. */
   lastConnection?: LastConnection;
 }
 
+/** Nombre maximum de connexions récentes conservées. */
+const RECENT_CONNECTIONS_CAP = 3;
+
 const DEFAULT_STORE: UserCredentialsStore = {
   environmentProfiles: {},
-  lastConnection: undefined,
+  recentConnections: [],
 };
 
 /**
@@ -36,31 +48,60 @@ export function getUserId(): string {
 }
 
 /**
- * Chemin du fichier de credentials pour l'utilisateur courant (relatif à process.cwd()).
+ * Chemin du fichier de credentials pour l'utilisateur courant (~/.dev-auth-fetcher/credentials).
  */
 export function getUserCredentialsPath(): string {
-  return path.join(process.cwd(), CREDENTIALS_DIR, CREDENTIALS_SUBDIR, getUserId() + '.json');
+  return path.join(getCredentialsDir(), getUserId() + '.json');
+}
+
+/** Ancien chemin du fichier de credentials (relatif au cwd), pour migration unique. */
+function getLegacyUserCredentialsPath(): string {
+  return path.join(getLegacyCredentialsDir(), getUserId() + '.json');
 }
 
 /**
- * Charge le store des credentials de l'utilisateur. Retourne un store vide si le fichier n'existe pas.
+ * Normalise l'historique des connexions au chargement, en migrant l'ancien champ
+ * mono-entrée `lastConnection` vers `recentConnections` si nécessaire.
  */
-export async function loadUserCredentialsStore(): Promise<UserCredentialsStore> {
-  const filePath = getUserCredentialsPath();
+function migrateRecentConnections(data: UserCredentialsStore): RecentConnection[] {
+  if (Array.isArray(data.recentConnections) && data.recentConnections.length > 0) {
+    return data.recentConnections;
+  }
+  if (data.lastConnection) {
+    return [{ ...data.lastConnection, connectedAt: Date.now() }];
+  }
+  return [];
+}
+
+/** Lit et normalise un fichier store ; null si absent. */
+async function readStoreFile(filePath: string): Promise<UserCredentialsStore | null> {
   try {
     const content = await fs.readFile(filePath, 'utf-8');
     const data = JSON.parse(content) as UserCredentialsStore;
     return {
       environmentProfiles: data.environmentProfiles ?? {},
-      lastConnection: data.lastConnection,
+      recentConnections: migrateRecentConnections(data),
     };
   } catch (err) {
-    const nodeErr = err as NodeJS.ErrnoException;
-    if (nodeErr.code === 'ENOENT') {
-      return { ...DEFAULT_STORE };
-    }
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
     throw err;
   }
+}
+
+/**
+ * Charge le store des credentials de l'utilisateur. Retourne un store vide s'il n'existe pas.
+ * Migre une fois l'ancien fichier (relatif au cwd) vers le dossier de données utilisateur.
+ */
+export async function loadUserCredentialsStore(): Promise<UserCredentialsStore> {
+  const current = await readStoreFile(getUserCredentialsPath());
+  if (current) return current;
+
+  const legacy = await readStoreFile(getLegacyUserCredentialsPath());
+  if (legacy) {
+    await saveUserCredentialsStore(legacy);
+    return legacy;
+  }
+  return { ...DEFAULT_STORE };
 }
 
 /**
@@ -103,28 +144,71 @@ export async function addOrUpdateProfileForEnvironment(
 }
 
 /**
- * Retourne la dernière connexion (envId + login) si disponible.
+ * Signature d'une connexion : env + login + jeu d'apps. Rend distincts les logins et
+ * les jeux d'apps différents, déduplique le même combo (insensible à l'ordre des apps).
  */
-export async function getLastConnection(): Promise<LastConnection | null> {
-  const store = await loadUserCredentialsStore();
-  return store.lastConnection ?? null;
+export function connectionSignature(
+  c: Pick<LastConnection, 'envId' | 'login' | 'allApps' | 'appIds' | 'appNames'>
+): string {
+  const apps = c.allApps ? 'ALL' : [...(c.appIds ?? c.appNames ?? [])].sort().join(',');
+  return `${c.envId}::${c.login}::${apps}`;
 }
 
 /**
- * Enregistre la dernière connexion (envId, login, et sélection d'apps) dans le store utilisateur.
+ * Retourne les connexions récentes (plus-récent-d'abord).
  */
-export async function setLastConnection(
+export async function getRecentConnections(): Promise<RecentConnection[]> {
+  const store = await loadUserCredentialsStore();
+  return store.recentConnections ?? [];
+}
+
+/**
+ * Retourne la connexion la plus récente si disponible (rétrocompatibilité reconnect-last).
+ */
+export async function getLastConnection(): Promise<LastConnection | null> {
+  const recents = await getRecentConnections();
+  return recents[0] ?? null;
+}
+
+/**
+ * Récence par login pour un environnement : `connectedAt` maximum observé par login.
+ * Utilisé pour faire remonter les derniers identifiants utilisés.
+ */
+export async function getLoginRecency(envId: string): Promise<Map<string, number>> {
+  const recents = await getRecentConnections();
+  const recency = new Map<string, number>();
+  for (const c of recents) {
+    if (c.envId !== envId) continue;
+    const prev = recency.get(c.login) ?? 0;
+    if (c.connectedAt > prev) recency.set(c.login, c.connectedAt);
+  }
+  return recency;
+}
+
+/**
+ * Enregistre une connexion (envId, login, sélection d'apps, expiration) en tête de
+ * l'historique : déduplique par signature, place en premier, plafonne à RECENT_CONNECTIONS_CAP.
+ */
+export async function recordConnection(
   envId: string,
   login: string,
-  appSelection?: { allApps: boolean; appIds: string[]; appNames?: string[] }
+  appSelection?: { allApps: boolean; appIds: string[]; appNames?: string[] },
+  meta?: { expiresAt?: number }
 ): Promise<void> {
   const store = await loadUserCredentialsStore();
-  store.lastConnection = {
+  const entry: RecentConnection = {
     envId,
     login,
     allApps: appSelection?.allApps,
     appIds: appSelection?.appIds?.length ? appSelection.appIds : undefined,
     appNames: appSelection?.appNames?.length ? appSelection.appNames : undefined,
+    connectedAt: Date.now(),
+    expiresAt: meta?.expiresAt,
   };
+  const signature = connectionSignature(entry);
+  const previous = (store.recentConnections ?? []).filter(
+    (c) => connectionSignature(c) !== signature
+  );
+  store.recentConnections = [entry, ...previous].slice(0, RECENT_CONNECTIONS_CAP);
   await saveUserCredentialsStore(store);
 }

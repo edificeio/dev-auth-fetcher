@@ -1,8 +1,10 @@
 import { getLastConnection } from '../../config/credentialsStore.js';
-import { EnvSyncService } from '../../services/EnvSyncService.js';
-import { createLogger } from '../../utils/logger.js';
-
-const logger = createLogger();
+import {
+  EnvSyncService,
+  describeLastConnectionApps,
+  reconnectOptionsFromLast,
+} from '../../services/EnvSyncService.js';
+import { logger } from '../../utils/logger.js';
 
 export async function runReconnectLastCommand(): Promise<void> {
   const last = await getLastConnection();
@@ -17,19 +19,9 @@ export async function runReconnectLastCommand(): Promise<void> {
   const hasAppSelection = last.allApps === true || (appIdsOrNames?.length ?? 0) > 0;
   logger.info(
     hasAppSelection
-      ? `Reconnexion automatique : ${last.envId} / ${last.login} (${last.allApps ? 'toutes les apps' : appIdsOrNames!.join(', ')})`
+      ? `Reconnexion automatique : ${last.envId} / ${last.login} (${describeLastConnectionApps(last)})`
       : `Reconnexion : ${last.envId} / ${last.login} (sélection des apps à choisir)`
   );
 
-  const service = new EnvSyncService();
-  await service.runInteractive({
-    env: last.envId,
-    login: last.login,
-    ...(last.allApps === true
-      ? { all: true }
-      : appIdsOrNames?.length
-        ? { apps: appIdsOrNames }
-        : {}),
-    skipConfirm: hasAppSelection,
-  });
+  await new EnvSyncService().runInteractive(reconnectOptionsFromLast(last));
 }

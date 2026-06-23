@@ -1,9 +1,13 @@
+import os from 'os';
 import path from 'path';
 
 /**
  * Helpers de chemins cross-platform (MacOS, Linux, Windows).
  * Toujours utiliser path.join / path.resolve au lieu de concaténer avec '/'.
  */
+
+/** Nom du dossier de données utilisateur (sous le HOME). */
+const DATA_DIR_NAME = '.dev-auth-fetcher';
 
 /**
  * Joint des segments de chemin de manière portable.
@@ -20,22 +24,47 @@ export function resolvePath(base: string, ...segments: string[]): string {
 }
 
 /**
- * Retourne le répertoire du fichier de config (racine du projet CLI).
+ * Dossier unique des données utilisateur (non versionnées) : config + credentials.
+ * Par défaut `~/.dev-auth-fetcher`, surchargeable via la variable DEV_AUTH_FETCHER_HOME.
  */
-export function getConfigDir(): string {
-  return resolvePath(process.cwd(), 'config');
+export function getUserDataDir(): string {
+  const override = process.env.DEV_AUTH_FETCHER_HOME?.trim();
+  return override || path.join(os.homedir(), DATA_DIR_NAME);
 }
 
 /**
- * Retourne le chemin du fichier app.config.json.
+ * Chemin du fichier de config utilisateur (appsRoot, defaultEnvironment).
  */
 export function getAppConfigPath(): string {
-  return joinPath(getConfigDir(), 'app.config.json');
+  return path.join(getUserDataDir(), 'config.json');
 }
 
 /**
- * Retourne le répertoire des configs d'environnements.
+ * Répertoire des credentials utilisateur (un fichier par identité).
+ */
+export function getCredentialsDir(): string {
+  return path.join(getUserDataDir(), 'credentials');
+}
+
+/**
+ * Répertoire des définitions d'environnements (dans le dossier utilisateur), seedé
+ * depuis les défauts du code. Indépendant du répertoire de lancement.
  */
 export function getEnvironmentsConfigDir(): string {
-  return joinPath(getConfigDir(), 'environments');
+  return path.join(getUserDataDir(), 'environments');
+}
+
+/** Ancien emplacement de la config (pour migration unique). */
+export function getLegacyAppConfigPath(): string {
+  return resolvePath(process.cwd(), 'config', 'app.config.json');
+}
+
+/** Ancien répertoire des credentials (pour migration unique). */
+export function getLegacyCredentialsDir(): string {
+  return path.join(process.cwd(), DATA_DIR_NAME, 'credentials');
+}
+
+/** Ancien répertoire des environnements versionnés dans le repo (pour migration unique). */
+export function getLegacyEnvironmentsConfigDir(): string {
+  return resolvePath(process.cwd(), 'config', 'environments');
 }

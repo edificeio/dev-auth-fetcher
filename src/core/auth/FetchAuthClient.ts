@@ -2,6 +2,17 @@ import { AuthError } from '../../utils/errors.js';
 
 import type { IAuthClient, AuthCredentials, AuthCookies } from './AuthClient.js';
 
+/** Délai maximum (ms) d'attente d'une réponse du serveur de recette. */
+const DEFAULT_TIMEOUT_MS = 15_000;
+
+/** Endpoint d'auth léger : 200 si la session est vivante, redirection sinon. */
+const SESSION_PROBE_PATH = '/auth/oauth2/userinfo';
+
+export interface FetchAuthClientOptions {
+  /** Délai maximum d'attente de la réponse, en millisecondes (défaut : 15 000). */
+  timeoutMs?: number;
+}
+
 /**
  * Parse une chaîne Set-Cookie pour extraire le nom et la valeur du cookie.
  * Format typique : "name=value; Path=/; HttpOnly; ..."
@@ -17,9 +28,48 @@ function parseCookie(setCookieHeader: string): { name: string; value: string } |
 }
 
 /**
+ * Estime l'expiration (ms epoch) d'un cookie depuis ses attributs `Max-Age` (prioritaire,
+ * en secondes) ou `Expires` (date HTTP). Retourne undefined si aucun n'est exploitable.
+ */
+export function parseCookieExpiry(
+  setCookieHeader: string,
+  now: number = Date.now()
+): number | undefined {
+  const attributes = setCookieHeader.split(';').slice(1);
+  for (const attr of attributes) {
+    const [rawKey, ...rawVal] = attr.split('=');
+    const key = rawKey.trim().toLowerCase();
+    const val = rawVal.join('=').trim();
+    if (key === 'max-age') {
+      const seconds = Number(val);
+      if (Number.isFinite(seconds)) return now + seconds * 1000;
+    }
+  }
+  for (const attr of attributes) {
+    const [rawKey, ...rawVal] = attr.split('=');
+    if (rawKey.trim().toLowerCase() === 'expires') {
+      const ts = Date.parse(rawVal.join('=').trim());
+      if (!Number.isNaN(ts)) return ts;
+    }
+  }
+  return undefined;
+}
+
+/**
  * Implémentation fetch : POST vers /auth/login, extraction des cookies depuis Set-Cookie.
+ *
+ * Fragilité connue : dépend de la forme actuelle du flux d'auth ENT (endpoint
+ * `/auth/login`, body `x-www-form-urlencoded`, cookies `authenticated` / `oneSessionId`
+ * / `XSRF-TOKEN`). Tout changement côté serveur (2FA, redirection, renommage de cookie)
+ * casse la connexion — d'où les messages d'erreur explicites ci-dessous.
  */
 export class FetchAuthClient implements IAuthClient {
+  private readonly timeoutMs: number;
+
+  constructor(options: FetchAuthClientOptions = {}) {
+    this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  }
+
   async loginAndGetCookies(envUrl: string, credentials: AuthCredentials): Promise<AuthCookies> {
     const baseUrl = envUrl.replace(/\/$/, '');
     const loginUrl = `${baseUrl}/auth/login`;
@@ -31,23 +81,19 @@ export class FetchAuthClient implements IAuthClient {
       details: '',
     }).toString();
 
-    const response = await fetch(loginUrl, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/x-www-form-urlencoded',
-      },
-      referrer: loginUrl,
-      redirect: 'manual',
-      body,
-    });
+    const response = await this.post(loginUrl, body);
 
     const setCookies = response.headers.getSetCookie();
     const cookieMap = new Map<string, string>();
+    let expiresAt: number | undefined;
 
     for (const header of setCookies) {
       const parsed = parseCookie(header);
       if (parsed) {
         cookieMap.set(parsed.name, parsed.value);
+        if (parsed.name === 'oneSessionId') {
+          expiresAt = parseCookieExpiry(header);
+        }
       }
     }
 
@@ -74,6 +120,55 @@ export class FetchAuthClient implements IAuthClient {
       // Conserver la valeur brute si le décodage échoue
     }
 
-    return { xsrfToken, sessionId };
+    return { xsrfToken, sessionId, expiresAt };
+  }
+
+  /**
+   * Indique si la session est vivante (GET sur l'endpoint d'auth, 200 = vivante).
+   * Sonder maintient aussi la session active côté serveur (timeout glissant).
+   * Lève une AuthError en cas d'échec réseau / dépassement de délai (≠ session morte).
+   */
+  async isSessionAlive(envUrl: string, sessionId: string): Promise<boolean> {
+    const baseUrl = envUrl.replace(/\/$/, '');
+    const probeUrl = `${baseUrl}${SESSION_PROBE_PATH}`;
+    const response = await this.fetchWithTimeout(probeUrl, {
+      method: 'GET',
+      headers: { cookie: `oneSessionId=${sessionId}` },
+      redirect: 'manual',
+    });
+    return response.status === 200;
+  }
+
+  /** POST `x-www-form-urlencoded` vers l'endpoint de login. */
+  private async post(loginUrl: string, body: string): Promise<Response> {
+    return this.fetchWithTimeout(loginUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      referrer: loginUrl,
+      redirect: 'manual',
+      body,
+    });
+  }
+
+  /**
+   * fetch avec timeout. Convertit les échecs réseau / dépassement de délai en AuthError lisible.
+   */
+  private async fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      return await fetch(url, { ...init, signal: controller.signal });
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw new AuthError(
+          `Délai dépassé (${this.timeoutMs} ms) en contactant ${url}. Le serveur de recette est peut-être indisponible.`
+        );
+      }
+      throw new AuthError(
+        `Impossible de contacter ${url} : ${err instanceof Error ? err.message : String(err)}`
+      );
+    } finally {
+      clearTimeout(timer);
+    }
   }
 }

@@ -42,7 +42,7 @@ pnpm run dev onboard
 node bin/dev-auth-fetcher onboard
 ```
 
-Vous serez invité à saisir le chemin du répertoire contenant vos applications : soit des dossiers `<app>/frontend` à la racine, soit (ou en plus) un sous-dossier `entcore` avec des apps `entcore/<app>/frontend`. Les fichiers dans `config/environments/` (recette-ode1, recette-ode2, recette-release, local) sont créés par défaut.
+Vous serez invité à saisir le chemin du répertoire contenant vos applications : soit des dossiers `<app>/frontend` à la racine, soit (ou en plus) un sous-dossier `entcore` avec des apps `entcore/<app>/frontend`. Les environnements par défaut (recette-ode1…ode4, recette-release, local) sont seedés dans `~/.dev-auth-fetcher/environments/`.
 
 ### Connexion et injection des cookies
 
@@ -60,8 +60,14 @@ Options de la commande `connect` :
 - `-a, --app <name>` : nom ou id d'application (ex. `mon-app` ou `entcore/mediacentre` pour une app sous entcore)
 - `--all` : cibler toutes les applications détectées
 - `-l, --login <login>` : login utilisateur (sinon demandé en interactif)
+- `--watch` : maintenir la session vivante par keep-alive (voir [Mode watch](#mode-watch--watch))
+- `--watch-interval <minutes>` : intervalle des pings keep-alive (défaut 2)
 
-Lors du premier `connect` pour un environnement, vous saisissez **login**, **mot de passe** et éventuellement un **rôle** (ex. Enseignant, Élève) pour identifier le compte. Après une connexion réussie, ces informations sont enregistrées. Aux connexions suivantes pour le même environnement, vous pouvez choisir un identifiant déjà enregistré (affiché avec le rôle entre parenthèses) ou « Nouvel identifiant ». Les credentials sont stockés par environnement et par utilisateur dans un fichier **non versionné** (voir [Structure des fichiers](#structure-des-fichiers)).
+Lors du premier `connect` pour un environnement, vous saisissez **login**, **mot de passe** et éventuellement un **rôle** (ex. Enseignant, Élève) pour identifier le compte. Après une connexion réussie, ces informations sont enregistrées. Aux connexions suivantes pour le même environnement, vous pouvez choisir un identifiant déjà enregistré (affiché avec le rôle entre parenthèses) ou « Nouvel identifiant ». Les identifiants sont **triés en faisant remonter les derniers utilisés**. Les credentials sont stockés par environnement et par utilisateur dans un fichier **non versionné** (voir [Structure des fichiers](#structure-des-fichiers)).
+
+#### Reconnexions rapides
+
+En mode interactif (sans `-e`), `connect` propose en tête de liste les **dernières connexions** (jusqu'à 3 : combo *environnement / login / apps*), chacune annotée de sa fraîcheur (« connecté il y a 3h12 », avec ⚠️ si la session est probablement expirée). Sélectionnez-en une pour la rejouer directement. Pratique quand on jongle entre plusieurs sujets avec des comptes différents.
 
 Exemples :
 
@@ -81,6 +87,22 @@ dev-auth-fetcher reconnect-last
 
 À utiliser après avoir fait au moins une fois `connect` (avec sélection d'apps). Si aucune dernière connexion n'est enregistrée, un message vous invitera à lancer d'abord `connect`.
 
+### Mode watch (`--watch`)
+
+Les sessions de recette expirent après une période d'inactivité : votre front local se met alors à recevoir des 401. Le mode `--watch` **maintient la session vivante** par un **ping keep-alive régulier** (premier plan, `Ctrl+C` pour arrêter) :
+
+```bash
+dev-auth-fetcher connect -e recette-ode1 -a mon-app --watch
+dev-auth-fetcher connect -e recette-ode1 -a mon-app --watch --watch-interval 3   # ping toutes les 3 min
+```
+
+À chaque intervalle (défaut **2 min**, réglable via `--watch-interval <minutes>`), l'outil sonde la session. L'intervalle doit rester **inférieur au timeout d'inactivité du serveur** (observé ≈ 5 min sur les recettes) pour que le ping réarme la session avant son expiration :
+
+- **session vivante** → rien n'est touché. Le ping lui-même réarme le timeout d'inactivité côté serveur, donc la session reste active **sans réécrire le `.env`** et **sans reload Vite**.
+- **session tombée** → l'outil **ré-authentifie et réinjecte** les `.env`. C'est le **seul** moment où le `.env` change.
+
+> ⚠️ **À savoir** : quand le `.env` est réécrit (uniquement à la ré-authentification), Vite **surveille les `.env`**, **redémarre le dev-server** et **recharge la page** (perte de l'état HMR). En keep-alive nominal, ça n'arrive pas — le reload n'a lieu que si la session a réellement expiré.
+
 ### Lister les applications
 
 Affiche les applications détectées (avec dossier `frontend`) dans le répertoire configuré :
@@ -91,22 +113,25 @@ dev-auth-fetcher list-apps
 
 ## Structure des fichiers
 
-- **Configuration globale** : `config/app.config.json`  
-  - `appsRoot` : chemin racine des applications  
-  - `defaultEnvironment` : environnement par défaut  
+Les données **non versionnées** (propres à chaque dev) sont centralisées dans **un seul dossier**, hors du repo : `~/.dev-auth-fetcher/` (surchargeable via la variable d'environnement `DEV_AUTH_FETCHER_HOME`).
 
-- **Environnements** : un fichier par environnement dans `config/environments/`  
-  - Ex. `recette-ode1.json` : `{ "id", "label", "url" }`
+- **Configuration utilisateur** : `~/.dev-auth-fetcher/config.json`
+  - `appsRoot` : chemin racine des applications
+  - `defaultEnvironment` : environnement par défaut
+
+- **Identifiants enregistrés** : `~/.dev-auth-fetcher/credentials/<userId>.json`
+  - `userId` = nom d'utilisateur système par défaut ; surchargeable via `DEV_AUTH_USER`.
+  - Contenu : profils par environnement (login, mot de passe, rôle optionnel) et **historique des dernières connexions** (jusqu'à 3 : env, login, apps, horodatage et expiration estimée) pour les reconnexions rapides et `reconnect-last`.
+
+  > Migration automatique : si d'anciens fichiers existent (`config/app.config.json` et `./.dev-auth-fetcher/credentials/` à la racine du repo), ils sont repris une fois vers `~/.dev-auth-fetcher/` au premier lancement.
+
+- **Environnements** : un fichier par environnement dans `~/.dev-auth-fetcher/environments/` (ex. `recette-ode1.json` : `{ "id", "label", "url" }`).
+  - La **liste partagée par défaut** est définie dans le code (`DEFAULT_ENVIRONMENTS`, versionné) et seedée automatiquement au premier usage. Pour ajouter/modifier un environnement partagé, éditer ce tableau ; pour un environnement perso, déposer un `.json` dans le dossier ci-dessus.
 
 - **Fichier .env cible** (dans chaque `application/frontend/.env` ou `entcore/application/frontend/.env`) :
   - `VITE_XSRF_TOKEN=...`
   - `VITE_ONE_SESSION_ID=...`
   - `VITE_RECETTE=<url>`
-
-- **Identifiants enregistrés** (par utilisateur, **non versionnés**, répertoire dans `.gitignore`) :
-  - Répertoire : `.dev-auth-fetcher/credentials/` (à la racine du répertoire depuis lequel vous lancez la CLI).
-  - Fichier : `<userId>.json` (par défaut `userId` = nom d'utilisateur système ; peut être surchargé avec la variable d'environnement `DEV_AUTH_USER`).
-  - Contenu : profils par environnement (login, mot de passe, rôle optionnel) et dernière connexion (env, login, apps) pour `reconnect-last`.
 
 ## Scripts
 
