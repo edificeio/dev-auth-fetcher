@@ -35,6 +35,15 @@ const STALE_AFTER_MS = 8 * 60 * 60 * 1000;
 const KEEPALIVE_INTERVAL_MS = 2 * 60 * 1000;
 /** Intervalle minimum accepté (anti-boucle serrée). */
 const KEEPALIVE_MIN_INTERVAL_MS = 30 * 1000;
+/**
+ * Nombre de sondes pour « réveiller » une session fraîchement créée avant d'écrire les .env.
+ * Une session OAuth2 ENT n'est pleinement active qu'après une première requête authentifiée :
+ * sans ça, les cookies écrits pointent vers une session pas encore initialisée et sont rejetés
+ * au 1er essai (puis acceptés au 2e, l'utilisateur étant devenu « chaud »). Cf. bug reconnect-last.
+ */
+const SESSION_WARMUP_ATTEMPTS = 5;
+/** Délai entre deux sondes de réveil (ms). */
+const SESSION_WARMUP_DELAY_MS = 400;
 
 export interface ConnectOptions {
   env?: string;
@@ -93,6 +102,11 @@ export function reconnectOptionsFromLast(last: LastConnection): ConnectOptions {
         : {}),
     skipConfirm: hasAppSelection,
   };
+}
+
+/** Sommeil simple (non annulable). */
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /** Sommeil annulable via un AbortSignal. Retourne 'aborted' si interrompu. */
@@ -200,6 +214,9 @@ export class EnvSyncService {
       password: creds.password,
     });
 
+    // Réveille la session côté serveur avant d'écrire les .env (cf. SESSION_WARMUP_ATTEMPTS).
+    await this.warmSession(env, cookies.sessionId);
+
     await recordConnection(
       env.id,
       creds.login,
@@ -222,6 +239,24 @@ export class EnvSyncService {
     );
 
     return cookies;
+  }
+
+  /**
+   * « Réveille » la session fraîchement créée : sonde `/auth/oauth2/userinfo` jusqu'à une
+   * réponse vivante (la sonde réalise la première requête authentifiée qui finalise la session
+   * côté serveur). Best-effort : si la sonde échoue (réseau) ou n'aboutit pas dans le budget de
+   * tentatives, on poursuit quand même l'écriture des .env plutôt que d'échouer la connexion.
+   */
+  private async warmSession(env: EnvironmentConfig, sessionId: string): Promise<void> {
+    for (let attempt = 1; attempt <= SESSION_WARMUP_ATTEMPTS; attempt++) {
+      try {
+        if (await this.authClient.isSessionAlive(env.url, sessionId)) return;
+      } catch {
+        // Réseau indisponible : inutile d'insister, on tentera l'écriture des .env.
+        return;
+      }
+      if (attempt < SESSION_WARMUP_ATTEMPTS) await delay(SESSION_WARMUP_DELAY_MS);
+    }
   }
 
   /**
