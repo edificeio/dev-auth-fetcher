@@ -20,8 +20,21 @@ import { AuthError } from '../../src/utils/errors.js';
 /** Faux client d'auth : enregistre les arguments reçus et renvoie des cookies fixes. */
 class FakeAuthClient implements IAuthClient {
   calls: Array<{ envUrl: string; credentials: AuthCredentials }> = [];
+  /** Sessions sondées par le réveil (warmSession), dans l'ordre. */
+  aliveCalls: Array<{ envUrl: string; sessionId: string }> = [];
+  /**
+   * File de réponses pour isSessionAlive : chaque entrée est consommée par appel.
+   * Une fois la file vide, renvoie true (session réveillée).
+   */
+  private aliveQueue: boolean[] = [];
 
   constructor(private readonly result: AuthCookies | Error) {}
+
+  /** Programme les réponses successives de isSessionAlive (ex. [false, false, true]). */
+  withAliveSequence(seq: boolean[]): this {
+    this.aliveQueue = [...seq];
+    return this;
+  }
 
   async loginAndGetCookies(envUrl: string, credentials: AuthCredentials): Promise<AuthCookies> {
     this.calls.push({ envUrl, credentials });
@@ -29,8 +42,9 @@ class FakeAuthClient implements IAuthClient {
     return this.result;
   }
 
-  async isSessionAlive(): Promise<boolean> {
-    return true;
+  async isSessionAlive(envUrl: string, sessionId: string): Promise<boolean> {
+    this.aliveCalls.push({ envUrl, sessionId });
+    return this.aliveQueue.shift() ?? true;
   }
 }
 
@@ -106,6 +120,24 @@ describe.sequential('EnvSyncService.runInteractive', () => {
     const recents = await getRecentConnections();
     expect(recents[0]).toMatchObject({ envId: ENV_ID, login: LOGIN, appIds: ['myapp'], expiresAt });
     expect(typeof recents[0].connectedAt).toBe('number');
+  });
+
+  it('réveille la session (sonde) avant d’écrire le .env, et sonde la bonne session', async () => {
+    const client = new FakeAuthClient({ xsrfToken: 'x', sessionId: 'sess-456' }).withAliveSequence([
+      false,
+      true,
+    ]);
+    const service = new EnvSyncService(client);
+
+    await service.runInteractive({ env: ENV_ID, login: LOGIN, apps: ['myapp'], skipConfirm: true });
+
+    // la session a été sondée jusqu'à réponse vivante, avec le sessionId fraîchement obtenu
+    expect(client.aliveCalls).toHaveLength(2);
+    expect(client.aliveCalls.every((c) => c.sessionId === 'sess-456')).toBe(true);
+
+    // et les cookies ont bien été écrits une fois la session active
+    const env = await readEnvFile(appEnvPath);
+    expect(env.VITE_ONE_SESSION_ID).toBe('sess-456');
   });
 
   it("ne touche pas au .env si l'authentification échoue", async () => {
